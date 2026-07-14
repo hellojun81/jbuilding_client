@@ -29,7 +29,7 @@ export default function ProviderSelect(props) {
             setDisabled(false)
         }
         const searchBtn = async () => {
-            const data = await getPromise('/jbd/searchRenter?getRenter=All')
+            const data = await getPromise('/api/renters?all=true')
             // console.log('provider',data)
             setRenterlist(data);
         }
@@ -43,12 +43,6 @@ export default function ProviderSelect(props) {
 
     function Pro() {
         const dispatch = useDispatch();
-        const subscribeCallback = () => {
-            const state = store.getState();
-            setRenterName(state.contentPop.value)
-        };
-        store.subscribe(subscribeCallback);
-
         const handleChange = (event) => {
             // console.log('Provider HandleChange : ', {event:event.target.value,renter:renter,title:title})
             setRenterName(event.target.value)

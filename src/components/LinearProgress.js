@@ -45,32 +45,33 @@ export default function LinearWithValueLabel() {
             getsunab(state.chgMonth.value)
             prevState = state;
         };
-        store.subscribe(subscribeCallback);
+        const unsubscribe = store.subscribe(subscribeCallback);
         const timer = setInterval(() => {
             setProgress((prevProgress) => (prevProgress >= 100 ? 10 : prevProgress + 10));
         }, 800);
         return () => {
-            store.unsubscribe(subscribeCallback);
+            unsubscribe();
             clearInterval(timer);
         };
     }, []);
 
     async function getsunab(date){
         let data=await getSunabMoney(date)
-        let tmoney=numberWithCommas(data[0].tmoney)
-        let minab=numberWithCommas(data[0].minab)
-        let value=Number(data[0].minab) / Number(data[0].tmoney)
-        console.log('value',value*100)
-        value=value*100
+        const summary = Array.isArray(data) && data[0] ? data[0] : { tmoney: 0, minab: 0 }
+        const totalAmount = Number(summary.tmoney || 0)
+        const paidAmount = Number(summary.minab || 0)
+        let tmoney=numberWithCommas(totalAmount)
+        let minab=numberWithCommas(paidAmount)
+        let value=totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0
         setValue(value)
         setTMoney(tmoney)
         setSunabMoney(minab)
     }
     function numberWithCommas(x) {
-        return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return Number(x || 0).toLocaleString('ko-KR');
       }
     return (
-        <Box sx={{ marginTop: '80px' }}>
+        <Box sx={{ mb: 2 }}>
             <Grid container>
                 <Grid item xs={12}>{sunabmoney} / {tmoney}</Grid>
                 <Grid item xs={2}></Grid>

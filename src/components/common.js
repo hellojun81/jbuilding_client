@@ -92,9 +92,12 @@ NumericFormatCustom.propTypes = {
 
 
 async function confirmPay(renter, title, values, keyName, dealYN) {
-    let data = await getPromise('/jbd/confirmPay?renter=' + renter + "&title=" + title
-        + "&values=" + values + "&keyName=" + keyName + "&dealYN=" + dealYN)
-    if (Number(data) > 0) {
+    const payload = valuesToObject(values, keyName);
+    const data = await apiRequest('/api/bills/' + encodeURIComponent(renter) + '/payment', {
+        method: 'PATCH',
+        body: { date: payload.date, finish: dealYN },
+    });
+    if (Number(data.affectedRows) > 0) {
         if (dealYN === 'Y') {
             alert('수납완료')
         } else {
@@ -106,52 +109,74 @@ async function confirmPay(renter, title, values, keyName, dealYN) {
 }
 
 async function updateData(renter, title, values, keyName) {
-    // console.log({ renter: renter, title: title, values: values, textValueName: keyName });
-    let data
-    data = await getPromise('/jbd/updateData?renter=' + renter + "&title=" + title + "&values=" + values + "&keyName=" + keyName)
-    if (Number(data) > 0) {
+    const path = title === '계약정보'
+        ? '/api/renters/' + encodeURIComponent(renter)
+        : '/api/bills/' + encodeURIComponent(renter);
+    const data = await apiRequest(path, {
+        method: 'PATCH',
+        body: valuesToObject(values, keyName),
+    });
+    if (Number(data.affectedRows) > 0) {
         alert('수정완료')
     } else {
         alert('수정실패')
     }
 }
 async function createData(renter, title, values, keyName) {
-    let data
-    const newValues = [...values];
-    const newKeyname = [...keyName];
-    // console.log('createData', { renter: renter, title: title, values: newValues, textValueName: newKeyname });
-    data = await getPromise('/jbd/createData?renter=' + renter + "&title=" + title
-        + "&values=" + newValues + "&keyName=" + newKeyname)
-    if (Number(data) > 0) {
+    const isRenter = title === '임차인추가';
+    const path = isRenter ? '/api/renters' : '/api/bills/' + encodeURIComponent(renter);
+    const data = await apiRequest(path, {
+        method: 'POST',
+        body: valuesToObject(values, keyName),
+    });
+    if (Number(data.affectedRows) > 0) {
         alert('저장완료')
     } else {
         alert('저장실패')
     }
 }
 // console.log(apiUrl)
+function valuesToObject(values, keyName) {
+    return Object.fromEntries(
+        keyName.map((key, index) => [key, values[index]])
+            .filter(([key]) => key),
+    );
+}
+
+async function apiRequest(param, options = {}) {
+    const response = await fetch(apiUrl + param, {
+        method: options.method || 'GET',
+        credentials: 'include',
+        headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || '서버 요청에 실패했습니다.');
+    return data;
+}
+
 async function getPromise(param) {
-    return await new Promise(async function (resolve, reject) {
-        // console.log('getPromise',param)
-        const Response = await fetch(apiUrl + param)
-        const data = await Response.json();
-        resolve(data)
-    })
+    return apiRequest(param);
 }
 
 async function getSunabMoney(date) {
     return await new Promise(async function (resolve, reject) {
         console.log('getSunabMoney', date)
-        const data = await getPromise('/jbd/getSunabMoney?date=' + date)
+        const data = await getPromise('/api/summary?date=' + encodeURIComponent(date))
         resolve(data)
     })
 }
 
 async function getRenter(renter, title) {
-    let field = "building_name,address,name, name2,"
-        + "licensenum,name2,tel,email,etc,"
-        + "start_date,end_date,"
-        + "deposit,rent_bill,mng_bill,vat_bill,contract_date"
-    const data = await getPromise('/jbd/GetrentEr?renter=' + renter + "&field=" + field)
+    if (renter === '선택') {
+        const fields = [
+            'building_name', 'address', 'name', 'name2', 'licensenum', 'tel', 'email', 'etc',
+            'start_date', 'end_date', 'deposit', 'rent_bill', 'mng_bill', 'vat_bill',
+            'water_bill', 'other_bill', 'other_vat_bill', 'contract_date',
+        ];
+        return [Object.fromEntries(fields.map((field) => [field, '']))];
+    }
+    const data = await getPromise('/api/renters/' + encodeURIComponent(renter))
     console.log('getRenter', data)
     return data
 }
@@ -164,17 +189,9 @@ async function getRentbill(renter, title, limitdate) {
     const state = store.getState();
     const today = new Date();
     const date = dayjs(state.chgMonth.value).format('YYYY.MM.DD')
-    let field
-    // const date = dayjs(today).format('YYYY.MM.DD')
-    if (title === '수납하기') {
-         field = "b.rent_bill,b.mng_bill,b.vat_bill,b.etc_bill,b.etc,'" + date + "' as date,b.finish "
-
-    } else if(title==='청구서생성') {
-         field = "a.rent_bill,a.mng_bill,b.vat_bill,b.etc_bill,b.etc,'" + date + "' as date,b.finish "
-    }
-    console.log('field', field)
-
-    const data = await getPromise('/jbd/GetrentBill?renter=' + renter + '&field=' + field + "&title=" + title + "&date=" + date)
+    const mode = title === '수납하기' ? 'payment' : 'create';
+    const data = await getPromise('/api/bills/' + encodeURIComponent(renter)
+        + '?date=' + encodeURIComponent(date) + '&mode=' + mode)
     // if (Object.keys(data).length > 0) {
     return data
     // console.log('Common getRentbill : ',data)
@@ -186,7 +203,8 @@ async function searchBtn(Search) {
     let month = date.slice(5, 7)
     let year = date.slice(0, 4)
     console.log('searchRenter', month)
-    const data = await getPromise('/jbd/searchRenter?year=' + year + '&month=' + month + '&renter=' + Search)
+    const data = await getPromise('/api/bills?year=' + year + '&month=' + month
+        + '&search=' + encodeURIComponent(Search || ''))
     return data
 }
 
@@ -194,5 +212,5 @@ export {
     searchBtn, createData,
     updateData, Numerictotal, NumericFormatCustom, getRentbill, GridCss,
     getRenter, getPromise, TextfileStyle, confirmPay,
-    getSunabMoney
+    getSunabMoney, apiRequest
 }

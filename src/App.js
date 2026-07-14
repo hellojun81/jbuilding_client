@@ -19,8 +19,8 @@ import ArticleIcon from '@mui/icons-material/Article';
 import DownloadIcon from '@mui/icons-material/Download';
 import CloseIcon from '@mui/icons-material/Close';
 import store, { setCurrentName } from './components/store';
-import { Provider, useDispatch, useSelector } from 'react-redux';
-import { getPromise } from './components/common';
+import { Provider, useDispatch } from 'react-redux';
+import { apiRequest, getPromise } from './components/common';
 import { exportExcel, rentBillReport } from './components/exportExcel';
 import dayjs from 'dayjs';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
@@ -30,7 +30,15 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import TextField from '@mui/material/TextField';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
-const apiUrl = process.env.REACT_APP_API_URL;
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import TaxInvoiceManagement from './components/TaxInvoiceManagement';
+import Dtpicker from './components/Dtpicker';
+import VatManagement from './components/VatManagement';
+const apiUrl =process.env.REACT_APP_API_URL
+const environmentLabel = process.env.REACT_APP_ENV_LABEL
+const vatManagementEnabled = process.env.REACT_APP_VAT_MANAGEMENT_ENABLED === 'true'
+
 
 const theme = createTheme();
 
@@ -50,6 +58,7 @@ function Header(props) {
         e.preventDefault();
         props.onChangeMode()
       }}>{props.title}</a></h1>
+    {environmentLabel && <div style={{ color: '#b71c1c', fontWeight: 700 }}>{environmentLabel}</div>}
   </header>
 }
 
@@ -57,19 +66,22 @@ function App() {
   const [DialogOpen, setDialogOpen] = useState(false);
   const [popTitle, setpopTitle] = useState();
   const [PopContent, setPopContent] = useState();
+  const [mainTab, setMainTab] = useState(0);
+  const visibleMainTab = !vatManagementEnabled && mainTab > 1 ? 0 : mainTab;
   // const [mode, setMode] = useState('loginCheck');
   const [mode, setMode] = useState('loginCheck');
   const prevState = useRef(store.getState());
   useEffect(() => {
-    console.log('apiUrl : ', apiUrl)
+    apiRequest('/api/session')
+      .then(() => setMode('loginOK'))
+      .catch(() => setMode('loginCheck'));
+
     const subscribeCallback = () => {
-      setMode('loginOK')
       const state = store.getState();
       const renter = state.contentPop.value;
       const title = state.contentPop.title;
       setpopTitle(title);
 
-      console.log('mode', mode)
       if (state.contentPop !== prevState.current.contentPop) {
         // console.log('App : state [contentPop] change', title);
         setPopContent(<InfoPopup />);
@@ -78,16 +90,13 @@ function App() {
       prevState.current = state;
     };
 
-    store.subscribe(subscribeCallback);
-    return () => {
-      store.unsubscribe(subscribeCallback);
-    };
+    const unsubscribe = store.subscribe(subscribeCallback);
+    return unsubscribe;
   }, []);
 
   async function getExcel(kind) {
     let fileName
     let result
-    let newArr = []
     const state = store.getState();
     const date = dayjs(state.chgMonth.value).format('YYYY.MM.DD')
     const year = dayjs(state.chgMonth.value).format('YYYY')
@@ -222,37 +231,28 @@ function App() {
   }
 
   async function loginApi(id, pw) {
-    if(id==='jcool' && pw==='dkffjqb@81'){
+    try {
+      await apiRequest('/api/login', {
+        method: 'POST',
+        body: { id, password: pw },
+      });
       setMode('loginOK')
-    }else{
-      alert('아이디 또는 비밀번호가 틀립니다')
+    } catch (error) {
+      alert(error.message)
     }
- 
-    // const response = await fetch(apiUrl + '/api/login?id=' + id + '&pw=' + pw, {
-    //   credentials: 'include',
-    //   //  credentials: 'same-origin',
-    // })
-    //   .then((response) => response.json())
-    //   .then((data) => {
-    //     if (data.result === 'ok') {
+  }
 
-    //       setMode('loginOK')
-    //     } else {
-    //       setMode('login')
-    //       if (id !== '') {
-    //         alert('아이디 또는 비밀번호가 틀립니다')
-    //       }
-    //     }
-    //   });
+  async function logout() {
+    try {
+      await apiRequest('/api/logout', { method: 'POST' });
+    } finally {
+      setMode('loginCheck');
+    }
   }
 
   const handleSubmit = (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    console.log({
-      id: data.get('id'),
-      password: data.get('password'),
-    });
     loginApi(data.get('id'), data.get('password'))
   };
 
@@ -321,12 +321,20 @@ function App() {
       <div className="App" sx={{ maxWidth: '600px' }}>
         <Provider store={store}>
 
-          <Header title="제이빌딩 임대료관리" />
+          <Header title="제이빌딩 임대료관리" onChangeMode={logout} />
           <MainDialog />
           <React.Fragment>
             <CssBaseline />
             <Container maxWidth="sm">
-              <Mainbody />
+              <Dtpicker />
+              <Tabs value={visibleMainTab} onChange={(event, value) => setMainTab(value)} variant="fullWidth">
+                <Tab label="임대료 관리" />
+                <Tab label="세금계산서 관리" />
+                {vatManagementEnabled && <Tab label="부가세 관리" />}
+              </Tabs>
+              {visibleMainTab === 0 && <Mainbody />}
+              {visibleMainTab === 1 && <TaxInvoiceManagement />}
+              {vatManagementEnabled && visibleMainTab === 2 && <VatManagement />}
             </Container>
           </React.Fragment>
           <Box sx={{
@@ -335,7 +343,7 @@ function App() {
             bottom: '10px',
             right: '10px',
           }}>
-            <SpeedDialBtn />
+            {visibleMainTab === 0 && <SpeedDialBtn />}
           </Box>
         </Provider>
       </div >

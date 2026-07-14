@@ -1,82 +1,43 @@
-import React, { useState } from 'react';
-import dayjs from 'dayjs';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-// import AdapterDateFns from '@mui/lab/AdapterDateFns';
+import React from 'react';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
+import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
-import { MobileDatePicker } from '@mui/x-date-pickers';
-import { Provider, useSelector, useDispatch } from 'react-redux';
-import store from './store'
-import { prev, next ,reset} from './store';
-const today = new Date();
+import { useDispatch, useSelector } from 'react-redux';
+import { next, prev, reset } from './store';
 
+export default function MonthSelector() {
+  const dispatch = useDispatch();
+  const selectedMonth = useSelector((state) => state.chgMonth.value);
 
-
-export default function MyDatePicker(props) {
-const[value,setvalue]=useState(dayjs(today).subtract(1, 'month').format('YYYY-MM-DD'))
-
-        function ChgMonth() {
-            const dispatch = useDispatch();
-            const count = useSelector(state => {
-                // console.log(dayjs(state.chgMonth.value).format('YYYY-MM'))
-                // setvalue(dayjs(state.chgMonth.value).format('YYYY-MM'))
-                return dayjs(state.chgMonth.value).format('YYYY-MM');
-            })
-        
-            const handleChange = (event) => {
-                let a=dayjs(event).format('YYYY-MM')
-                setvalue(a)
-                dispatch(reset(a));
-                }
-
-
-            return (
-  
-                    <ButtonGroup variant="contained" aria-label="outlined primary button group" sx={{
-                        width: '60%',
-                        position: 'fixed',
-                        backgroundColor: '#fff',
-                        right: '10px',
-                        left: '50%',
-                        top: '13%',
-                        transform: 'translate(-50%, -50%)',
-                        maxWidth: '400px',
-                        height: '40px'
-                    }}>
-                        <Button variant="contained" sx={{ width: '25%', opacity: '1' }} name='prev'
-                            onClick={() => {
-                                dispatch(prev(1));
-                            }}
-                        >
-                            <ArrowBackIosIcon />
-                        </Button>
-                        <LocalizationProvider dateAdapter={AdapterDayjs}>
-                        <MobileDatePicker
-                            label={count}
-                            openTo="month"
-                            views={["year", "month"]}
-                            onChange={handleChange}
-                        // value={today}
-                        />
-                    </LocalizationProvider>
-                        <Button variant="contained" sx={{ width: '25%' }}
-                          onClick={() => {
-                                        dispatch(next(1));
-                                    }}
-                        ><ArrowForwardIosIcon /></Button>
-                    </ButtonGroup>
-               
-            );
-        }
-    return (
-        <Provider store={store}>
-            <div>
-                <ChgMonth></ChgMonth>
-            </div>
-        </Provider>
-
-    );
+  return (
+    <Paper elevation={1} sx={{ mt: 1.5, mb: 1.5, p: 1.5 }}>
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
+        공통 조회 월
+      </Typography>
+      <ButtonGroup fullWidth variant="contained" aria-label="조회 월 이동">
+        <Button aria-label="이전 달" onClick={() => dispatch(prev())} sx={{ maxWidth: 72 }}>
+          <ArrowBackIosIcon fontSize="small" />
+        </Button>
+        <Box sx={{ flex: 1, bgcolor: 'background.paper' }}>
+          <TextField
+            type="month"
+            value={selectedMonth}
+            onChange={(event) => dispatch(reset(event.target.value))}
+            inputProps={{ 'aria-label': '공통 조회 월' }}
+            size="small"
+            fullWidth
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+          />
+        </Box>
+        <Button aria-label="다음 달" onClick={() => dispatch(next())} sx={{ maxWidth: 72 }}>
+          <ArrowForwardIosIcon fontSize="small" />
+        </Button>
+      </ButtonGroup>
+    </Paper>
+  );
 }

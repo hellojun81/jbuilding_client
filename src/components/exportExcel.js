@@ -25,21 +25,21 @@ async function rentBillReport(result, fileName) {
       });
     
 
-    let renter,address,year,month,rentbill,mngbill,vatbill,etcbill,etc
     for (let i = 0; i < result.length; i++) {
-        const array = Object.entries(result[i]);  
-        console.log(array) 
-        renter=array[3][1]
-        address=array[2][1];
-        year=array[4][1];
-        month=array[5][1];
-        rentbill=array[6][1];
-        mngbill=array[7][1];
-        etcbill=array[9][1];
+        const row = result[i];
+        const renter = row['이름'];
+        const address = row['주소'];
+        const year = row['년'];
+        const month = Number(row['월']);
+        const rentbill = row['임대료'];
+        const mngbill = row['관리비'];
+        const waterbill = row['수도료'];
+        const otherbill = row['기타요금'];
+        const otherVatBill = row['기타 부가세'];
 
         console.log({renter:renter,add:address,year:year,month:month,rentbill:rentbill,mngbill:mngbill})
         const worksheet = workbook.addWorksheet(renter);
-        addSheet(worksheet,renter,address,year,month,rentbill,mngbill,etcbill);
+        addSheet(worksheet, renter, address, year, month, rentbill, mngbill, waterbill, otherbill, otherVatBill);
         const imageId = workbook.addImage({
             buffer: imageBuffer,
             extension: 'png',
@@ -57,9 +57,11 @@ async function rentBillReport(result, fileName) {
     saveAs(exportBlob,fileName+ '.xlsx');
 }
 
-function addSheet(worksheet,renter,address,year,month,rentbill,mngbill,etcbill) {
+function addSheet(worksheet, renter, address, year, month, rentbill, mngbill, waterbill, otherbill, otherVatBill) {
     // 워크시트 생성
-    let tmoney=((Number(rentbill)+ Number(rentbill)*0.1)+(Number(mngbill)+ Number(mngbill)*0.1))+Number(etcbill)
+    let tmoney = ((Number(rentbill) + Number(rentbill) * 0.1)
+        + (Number(mngbill) + Number(mngbill) * 0.1))
+        + Number(waterbill) + Number(otherbill) + Number(otherVatBill)
     const data = [
         [year+"년"+month+"월 제이빌딩 임대료 및 관리비 청구서", '', '', ''],
         [' ', ' ', '', ' '],
@@ -68,10 +70,10 @@ function addSheet(worksheet,renter,address,year,month,rentbill,mngbill,etcbill) 
         ['항목', '금액', '부가세액', '합계'],
         ['월임대료', Number(rentbill), Number(rentbill)*0.1, Number(rentbill)+ Number(rentbill)*0.1],
         ['일반관리비', Number(mngbill), Number(mngbill)*0.1, Number(mngbill)+ Number(mngbill)*0.1],
-        ['수도요금', Number(etcbill), '', Number(etcbill)],
-        ['기타', '', '', ''],
+        ['수도료', Number(waterbill), '', Number(waterbill)],
+        ['기타요금', Number(otherbill), Number(otherVatBill), Number(otherbill) + Number(otherVatBill)],
         [' ', ' ', '', ' '],
-        ['납부기한2023년 '+month+'월말일까지', '', '납기내금액', Number(tmoney)],
+        ['납부기한'+year+'년 '+month+'월말일까지', '', '납기내금액', Number(tmoney)],
         ['', '', '연체가산금', Number(tmoney)*0.015],
         ['', '', '납기후금액', Number(tmoney)+Number(tmoney)*0.015],
         [' ', ' ', '', ' '],
@@ -94,7 +96,7 @@ function addSheet(worksheet,renter,address,year,month,rentbill,mngbill,etcbill) 
     });
 
     worksheet.columns = [
-        { header: '제이빌딩 '+month+'임대료 및 관리비 청구서', key: 'header1', width: 17.83 },
+        { header: '제이빌딩 '+month+'월 임대료 및 관리비 청구서', key: 'header1', width: 17.83 },
         { header: 'Header2', key: 'header2', width: 19 },
         { header: 'Header3', key: 'header3', width: 19 },
         { header: 'Header3', key: 'header3', width: 19 },

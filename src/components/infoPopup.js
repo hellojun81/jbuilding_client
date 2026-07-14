@@ -27,7 +27,7 @@ function InfoPopup(props) {
     const state = store.getState();
     const renter = state.contentPop.value
     const title = state.contentPop.title
-    const [textValue, setTextValue] = useState([['건물명', '동호수', '입주자[상호]', '사업자번호', '담당자', '연락처', '이메일', '메모'], ['계약시작일', '계약종료일', '보증금', '임대료', '관리비', '기타']]);
+    const [textValue, setTextValue] = useState([['건물명', '동호수', '입주자[상호]', '사업자번호', '담당자', '연락처', '이메일', '메모'], ['계약시작일', '계약종료일', '보증금', '임대료', '관리비', '부가세', '수도료', '기타요금', '기타 부가세']]);
     const [textValueName, setTextValueName] = useState([]);
 
   
@@ -38,21 +38,15 @@ function InfoPopup(props) {
         if (title === '임차인추가') {
             newValues[8] = startdate.format('YYYY.MM.DD')
             newValues[9] = enddate.format('YYYY.MM.DD')
-            newValues[14] = Contdate.format('YYYY.MM.DD')
+            newValues[17] = Contdate.format('YYYY.MM.DD')
+        }
+        if ((title === '계약정보' || title === '임차인추가')
+            && (event.target.name === 'rent_bill' || event.target.name === 'mng_bill')) {
+            newValues[13] = (Number(newValues[11] || 0) + Number(newValues[12] || 0)) * 0.1;
         }
         setGetbill(newValues);
-        vatUpdate(newValues, title);
-        totalBillUpdate(newValues, title);
-        //부가세 합계금 구하기
-        if (title === '계약정보' || title === '임차인추가') {
-            if (event.target.name === 'rent_bill' || event.target.name === 'mng_bill') {
-                let vat = (Number(newValues[11]) + Number(newValues[12])) * 0.1
-                setVat(vat);
-                let tMoney = (Number(newValues[11]) + Number(newValues[12])) + Number(vat)
-                setTotal(tMoney)
-            }
-        }
-
+        const calculatedValues = vatUpdate(newValues, title);
+        totalBillUpdate(calculatedValues, title);
     };
     const dtpickerChange = (label) => (event) => {
         const newValues = [...getbill];
@@ -65,12 +59,12 @@ function InfoPopup(props) {
                 newValues[9] = dayjs(event).format('YYYY.MM.DD')
                 setEnddate(dayjs(event))
             } else if (label === '계약일') {
-                newValues[14] = dayjs(event).format('YYYY.MM.DD')
+                newValues[17] = dayjs(event).format('YYYY.MM.DD')
                 setContdate(dayjs(event))
             }
         } else if (title === '청구서생성') {
             if (label === '수납일') {
-                newValues[5] = dayjs(event).format('YYYY.MM.DD')
+                newValues[7] = dayjs(event).format('YYYY.MM.DD')
                 setLimitdate(dayjs(event))
             }
         }
@@ -80,11 +74,10 @@ function InfoPopup(props) {
 
     const vatUpdate = (values, title) => {
         let newarrValue = [...values]
-        let vatMoney = 0;
-        for (let i = 0; i < 2; i++) {
-            vatMoney = vatMoney + Number(values[i]);
-        }
-        vatMoney = vatMoney * 0.1
+        const taxableValues = (title === '계약정보' || title === '임차인추가') && values.length > 10
+            ? values.slice(11, 13)
+            : values.slice(0, 2);
+        const vatMoney = taxableValues.reduce((sum, value) => sum + Number(value || 0), 0) * 0.1;
         if (title === '청구서생성') {
             newarrValue[2] = vatMoney
             // console.log('vatUpdate', { newarrValue: newarrValue, value: values, title: title })
@@ -95,15 +88,11 @@ function InfoPopup(props) {
     };
 
     const totalBillUpdate = (values, title) => {
-        let tMoney = 0;
-        for (let i = 0; i < 4; i++) {
-            if (values[i] === undefined) {
-                values[i] = 0
-            }
-            tMoney = tMoney + Number(values[i]);
-        }
+        const chargeValues = (title === '계약정보' || title === '임차인추가') && values.length > 10
+            ? values.slice(11, 17)
+            : values.slice(0, 6);
+        const tMoney = chargeValues.reduce((sum, value) => sum + Number(value || 0), 0);
         setTotal(tMoney)
-       
     };
 
 
@@ -133,14 +122,18 @@ function InfoPopup(props) {
                 settingData(apidata[0], renter)
             } else if (title === '청구서생성') {
                 setSavebtn('저장')
-                if (apidata && apidata.hasOwnProperty('result')) {
-                    alert(apidata.result)
+                if (apidata && apidata.exists) {
+                    alert('해당 월의 청구서가 이미 존재합니다.')
                     settingData(apidata.value[0], renter)
                     setSavebtn('수정')
                 } else {
                     settingData(apidata[0], renter)
                 }
             } else if (title === '수납하기') {
+                if (!apidata[0]) {
+                    alert('선택한 월의 청구서가 없습니다.')
+                    return
+                }
                 if (apidata[0].finish === 'Y') {
                     setSavebtn('수납취소')
                 } else {
@@ -180,7 +173,9 @@ function InfoPopup(props) {
                 newarrValue.push(arrValue[11])
                 newarrValue.push(arrValue[12])
                 newarrValue.push(vat)
-                newarrValue.push(0)
+                newarrValue.push(arrValue[14] || 0)
+                newarrValue.push(arrValue[15] || 0)
+                newarrValue.push(arrValue[16] || 0)
                 // console.log('newarrValue', { value: newarrValue, vat: vat })
                 arrValue = newarrValue;
             }
@@ -195,11 +190,11 @@ function InfoPopup(props) {
         const renter = state.contentPop.value
         const title = state.contentPop.title
         if (title === '계약정보' || title === '임차인추가') {
-            setTextValue([['건물명', '동호수', '입주자[상호]', '담당자', '사업자번호', '연락처', '이메일', '메모'], ['계약시작일', '계약종료일', '보증금', '임대료', '관리비', '부가세']]);
+            setTextValue([['건물명', '동호수', '입주자[상호]', '담당자', '사업자번호', '연락처', '이메일', '메모'], ['계약시작일', '계약종료일', '보증금', '임대료', '관리비', '부가세', '수도료', '기타요금', '기타 부가세']]);
             getdata(renter, title)
 
         } else if (title === '수납하기' || title === '청구서생성') {
-            setTextValue([['임대료', '관리비', '부가세', '기타', '메모']])
+            setTextValue([['임대료', '관리비', '부가세', '수도료', '기타요금', '기타 부가세', '메모']])
             getdata(renter, title)
         }
         if (renter === '선택') {
@@ -271,8 +266,12 @@ function InfoPopup(props) {
                                             ? { inputComponent: NumericFormatCustom }
                                             : value === '부가세'
                                                 ? { inputComponent: NumericFormatCustom }
-                                                : value === '기타'
+                                                : value === '수도료'
                                                     ? { inputComponent: NumericFormatCustom }
+                                                    : value === '기타요금'
+                                                        ? { inputComponent: NumericFormatCustom }
+                                                        : value === '기타 부가세'
+                                                            ? { inputComponent: NumericFormatCustom }
                                                     : null
                             }
                             key={`${value}_${index}_${key_index}`}

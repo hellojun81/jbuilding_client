@@ -1,5 +1,4 @@
 import React, { useState, useCallback, } from 'react';
-import Dtpicker from './Dtpicker.js'
 import LinearProgress from './LinearProgress.js'
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -22,6 +21,12 @@ import { setCurrentName } from './store';
 import { searchBtn } from './common.js'
 const apiUrl = process.env.REACT_APP_API_URL;
 const rowsInit = [];
+console.log('Main Body apiUrl',apiUrl)
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("PUBLIC_URL:", process.env.PUBLIC_URL);
+console.log("LOCATION:", window.location.href);
+console.log("API_URL:", process.env.REACT_APP_API_URL);
+
 
 
 function MainTable(props) {
@@ -47,10 +52,8 @@ function MainTable(props) {
             // }
             prevState = state;
         };
-        store.subscribe(subscribeCallback);
-        return () => {
-            store.unsubscribe(subscribeCallback);
-        };
+        const unsubscribe = store.subscribe(subscribeCallback);
+        return unsubscribe;
     }, []);
 
 
@@ -58,9 +61,9 @@ function MainTable(props) {
     async function searchRenter(){
         let data= await searchBtn(Search)
         let checkArr=[]
-        console.log('searchRenter',data)
-        setRows(data)
-        data.forEach((e, index) => { 
+        const rows = Array.isArray(data) ? data : []
+        setRows(rows)
+        rows.forEach((e, index) => {
            if(e.finish==='Y'){
             checkArr.push(true)
            }else{
@@ -140,7 +143,6 @@ function MainTable(props) {
                 <div>
                     <React.Fragment>
                         <Box>
-                            <Dtpicker />
                             <LinearProgress />
                         </Box>
                         <Box sx={{ width: '100%' }}>
