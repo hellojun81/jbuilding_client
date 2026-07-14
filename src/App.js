@@ -21,7 +21,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import store, { setCurrentName } from './components/store';
 import { Provider, useDispatch } from 'react-redux';
 import { apiRequest, getPromise } from './components/common';
-import { exportExcel, rentBillReport } from './components/exportExcel';
+import { exportExcel, normalizeExcelRows, rentBillReport } from './components/exportExcel';
 import dayjs from 'dayjs';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Avatar from '@mui/material/Avatar';
@@ -106,10 +106,12 @@ function App() {
     if (kind === 'rentbillDown') {
       fileName = date + '청구서엑셀다운로드'
       result = await getPromise('/jbd/getExcelData?date=' + date + '&kind=rentbilldown')
+      result = normalizeExcelRows(result)
       rentBillReport(result, fileName);
     } else if (kind === 'taxbillDown') {
 
       result = await getPromise('/jbd/getExcelData?date=' + date + '&kind=taxbilldown')
+      result = (Array.isArray(result) ? result : []).map(normalizeExcelRows)
       // console.log('result', result)
       for (let k = 0; k < result.length; k++) {
         for (let i = 0; i < result[k].length; i++) {

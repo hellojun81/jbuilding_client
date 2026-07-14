@@ -146,6 +146,7 @@ function valuesToObject(values, keyName) {
 async function apiRequest(param, options = {}) {
     const response = await fetch(apiUrl + param, {
         method: options.method || 'GET',
+        cache: options.cache || 'no-store',
         credentials: 'include',
         headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
         body: options.body ? JSON.stringify(options.body) : undefined,

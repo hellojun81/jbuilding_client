@@ -1,5 +1,4 @@
 
-import React, { useRef } from 'react';
 import { saveAs } from 'file-saver';
 import * as XLSX from "xlsx-js-style";
 import ExcelJS from 'exceljs';
@@ -10,6 +9,19 @@ const borderStyle = {
     color: "000000",
 };
 
+function decodeExcelValue(value) {
+    if (value && value.type === 'Buffer' && Array.isArray(value.data)) {
+        return new TextDecoder().decode(Uint8Array.from(value.data));
+    }
+    return value;
+}
+
+function normalizeExcelRows(rows) {
+    return (Array.isArray(rows) ? rows : []).map((row) => Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [key, decodeExcelValue(value)]),
+    ));
+}
+
 async function rentBillReport(result, fileName) {
     const imageUrl = 'http://jcooly.cafe24.com/stamp.jpg';
     const image = await fetch(imageUrl);
@@ -17,6 +29,10 @@ async function rentBillReport(result, fileName) {
     const imageBuffer = await blob.arrayBuffer();
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('청구서');
+    const imageId = workbook.addImage({
+        buffer: imageBuffer,
+        extension: blob.type.includes('png') ? 'png' : 'jpeg',
+    });
 
     result.forEach((data) => {
         const addrow = Object.values(data);
@@ -37,13 +53,8 @@ async function rentBillReport(result, fileName) {
         const otherbill = row['기타요금'];
         const otherVatBill = row['기타 부가세'];
 
-        console.log({renter:renter,add:address,year:year,month:month,rentbill:rentbill,mngbill:mngbill})
         const worksheet = workbook.addWorksheet(renter);
         addSheet(worksheet, renter, address, year, month, rentbill, mngbill, waterbill, otherbill, otherVatBill);
-        const imageId = workbook.addImage({
-            buffer: imageBuffer,
-            extension: 'png',
-        });
         // 이미지를 워크시트에 배치
         worksheet.addImage(imageId, {
             tl: { col: 3, row: 18 },
@@ -129,4 +140,4 @@ function exportExcel(data, fileName) {
     XLSX.writeFile(wb, fileName+".xlsx");
 }
 
-export { exportExcel, rentBillReport }
+export { decodeExcelValue, exportExcel, normalizeExcelRows, rentBillReport }
