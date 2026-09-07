@@ -112,22 +112,28 @@ export default function BankManagement() {
   };
 
   const confirmMatch = async (transaction) => {
-    const renterCode = choices[transaction.id] || transaction.suggested?.renterCode || '';
-    const candidate = (transaction.candidates || []).find((value) => value.renterCode === renterCode);
+    const candidateKey = choices[transaction.id] || transaction.suggested?.candidateKey || '';
+    const candidate = (transaction.candidates || []).find((value) => value.candidateKey === candidateKey);
     if (!candidate) return setError('매칭할 청구서를 선택해 주세요.');
     const forced = Number(transaction.deposit_amount) !== Number(candidate.amount);
     const difference = Number(transaction.deposit_amount) - Number(candidate.amount);
     const prompt = forced
-      ? `금액이 다른 청구서를 강제 매칭합니다.\n\n입금액: ${money(transaction.deposit_amount)}원\n청구금액: ${money(candidate.amount)}원\n차액: ${difference > 0 ? '+' : ''}${money(difference)}원\n거래처: ${candidate.renterName}\n\n계속하면 청구서가 수납 완료로 변경됩니다. 정말 강제 매칭하시겠습니까?`
-      : `${money(transaction.deposit_amount)}원 입금을 ${candidate.renterName}의 ${year}년 ${month}월 청구서에 매칭하시겠습니까?\n확정하면 수납 완료로 변경됩니다.`;
+      ? `금액이 다른 청구서를 강제 매칭합니다.\n\n입금액: ${money(transaction.deposit_amount)}원\n청구금액: ${money(candidate.amount)}원\n차액: ${difference > 0 ? '+' : ''}${money(difference)}원\n거래처: ${candidate.renterName}\n청구월: ${candidate.billYear}년 ${candidate.billMonth}월\n\n계속하면 청구서가 수납 완료로 변경됩니다. 정말 강제 매칭하시겠습니까?`
+      : `${money(transaction.deposit_amount)}원 입금을 ${candidate.renterName}의 ${candidate.billYear}년 ${candidate.billMonth}월 청구서에 매칭하시겠습니까?\n확정하면 수납 완료로 변경됩니다.`;
     if (!window.confirm(prompt)) return;
     try {
       setLoading(true);
       await apiRequest('/api/bank/matches', {
         method: 'POST',
-        body: { transactionId: transaction.id, renterCode, year, month, confirmation: forced ? 'FORCE_MATCH' : 'MATCH' },
+        body: {
+          transactionId: transaction.id,
+          renterCode: candidate.renterCode,
+          year: candidate.billYear,
+          month: candidate.billMonth,
+          confirmation: forced ? 'FORCE_MATCH' : 'MATCH',
+        },
       });
-      setMessage(`${candidate.renterName} 청구서를 수납 완료로 변경했습니다.`);
+      setMessage(`${candidate.renterName}의 ${candidate.billYear}년 ${candidate.billMonth}월 청구서를 수납 완료로 변경했습니다.`);
       setRefreshKey((value) => value + 1);
     } catch (requestError) {
       setError(requestError.message);
@@ -137,7 +143,7 @@ export default function BankManagement() {
   };
 
   const cancelMatch = async (transaction) => {
-    if (!window.confirm(`${transaction.matched_renter_name} 입금 매칭을 취소하고 청구서를 미수납으로 되돌리시겠습니까?`)) return;
+    if (!window.confirm(`${transaction.matched_renter_name}의 ${transaction.bill_year}년 ${transaction.bill_month}월 입금 매칭을 취소하고 청구서를 미수납으로 되돌리시겠습니까?`)) return;
     try {
       setLoading(true);
       await apiRequest(`/api/bank/matches/${transaction.match_id}/cancel`, {
@@ -177,7 +183,7 @@ export default function BankManagement() {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {message && <Alert severity="info" sx={{ mb: 2 }}>{message}</Alert>}
       <Alert severity="warning" sx={{ mb: 2 }}>
-        입금자명과 거래처명이 달라도 처음 수동 매칭한 관계를 기억합니다. 금액이 다른 거래처도 강제 매칭할 수 있지만, 확정하면 청구서 전체가 수납 완료로 변경되므로 차액을 반드시 확인하세요.
+        입금월과 바로 이전 달의 미수납 청구서를 함께 보여줍니다. 금액이 다른 거래처도 강제 매칭할 수 있지만, 확정하면 해당 청구서 전체가 수납 완료로 변경되므로 청구월과 차액을 반드시 확인하세요.
       </Alert>
 
       <TableContainer component={Paper}>
@@ -188,22 +194,24 @@ export default function BankManagement() {
           </TableRow></TableHead>
           <TableBody>
             {transactions.map((transaction) => {
-              const defaultChoice = choices[transaction.id] || transaction.suggested?.renterCode || '';
+              const defaultChoice = choices[transaction.id] || transaction.suggested?.candidateKey || '';
               const selectedCandidate = (transaction.candidates || [])
-                .find((candidate) => candidate.renterCode === defaultChoice);
+                .find((candidate) => candidate.candidateKey === defaultChoice);
               const forcedSelection = selectedCandidate && !selectedCandidate.exactAmount;
               return <TableRow key={transaction.id}>
                 <TableCell>{String(transaction.trade_datetime || transaction.trade_date || '').replace('T', ' ').slice(0, 19)}</TableCell>
                 <TableCell align="right"><strong>{money(transaction.deposit_amount)}원</strong></TableCell>
                 <TableCell>{transactionText(transaction)}</TableCell>
                 <TableCell>
-                  {transaction.match_id ? transaction.matched_renter_name : (
+                  {transaction.match_id
+                    ? `${transaction.matched_renter_name} · ${transaction.bill_year}.${transaction.bill_month}`
+                    : (
                     <FormControl size="small" fullWidth disabled={(transaction.candidates || []).length === 0}>
                       <Select displayEmpty value={defaultChoice} onChange={(event) => setChoices((current) => ({ ...current, [transaction.id]: event.target.value }))}>
                         <MenuItem value="">거래처 직접 선택</MenuItem>
                         {(transaction.candidates || []).map((candidate) => (
-                          <MenuItem key={candidate.renterCode} value={candidate.renterCode}>
-                            {candidate.renterName} · {money(candidate.amount)}원
+                          <MenuItem key={candidate.candidateKey} value={candidate.candidateKey}>
+                            {candidate.renterName} · {candidate.billYear}.{candidate.billMonth} · {money(candidate.amount)}원
                             {candidate.exactAmount
                               ? (candidate.learnedMatch ? ' · 이전 매칭 기억' : (candidate.nameMatched ? ' · 이름 일치' : ' · 금액 일치'))
                               : ` · 차액 ${Number(candidate.difference) > 0 ? '+' : ''}${money(candidate.difference)}원`}
