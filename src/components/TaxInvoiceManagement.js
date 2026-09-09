@@ -16,6 +16,11 @@ import Typography from '@mui/material/Typography';
 import { apiRequest } from './common';
 
 const money = (value) => Number(value || 0).toLocaleString('ko-KR');
+const popbillDateTime = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length < 8) return '';
+  return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6, 8)}${digits.length >= 14 ? ` ${digits.slice(8, 10)}:${digits.slice(10, 12)}` : ''}`;
+};
 
 export default function TaxInvoiceManagement() {
   const selectedMonth = useSelector((state) => state.chgMonth.value);
@@ -109,14 +114,19 @@ export default function TaxInvoiceManagement() {
     <Box sx={{ mt: 3, mb: 10 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6">{year}년 {month}월 세금계산서</Typography>
-        <Button
-          variant="contained"
-          color="error"
-          disabled={loading || selected.length === 0 || !provider.configured}
-          onClick={issueSelected}
-        >
-          선택 {selected.length}개 거래처 · {selectedDocumentCount}건 일괄 발행
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" disabled={loading} onClick={() => setRefreshKey((value) => value + 1)}>
+            국세청 전송상태 새로고침
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={loading || selected.length === 0 || !provider.configured}
+            onClick={issueSelected}
+          >
+            선택 {selected.length}개 거래처 · {selectedDocumentCount}건 일괄 발행
+          </Button>
+        </Box>
       </Box>
 
       {!provider.configured && (
@@ -152,7 +162,8 @@ export default function TaxInvoiceManagement() {
               <TableCell align="right">수도료(면세)</TableCell>
               <TableCell align="right">과세 합계</TableCell>
               <TableCell align="center">발행문서</TableCell>
-              <TableCell>검증/상태</TableCell>
+              <TableCell>발행상태</TableCell>
+              <TableCell>국세청 전송</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -190,11 +201,31 @@ export default function TaxInvoiceManagement() {
                       </Typography>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      color={invoice.nts_status === '국세청 전송완료'
+                        ? 'success'
+                        : (String(invoice.nts_status).includes('실패') ? 'error' : 'warning')}
+                      label={invoice.nts_status || '확인필요'}
+                    />
+                    {Number(invoice.nts_expected_count || 0) > 0 && (
+                      <Typography variant="caption" display="block" color="text.secondary">
+                        승인 {Number(invoice.nts_confirmed_count || 0)}/{Number(invoice.nts_expected_count)}건
+                        {invoice.nts_result_at ? ` · 결과 ${popbillDateTime(invoice.nts_result_at)}` : ''}
+                      </Typography>
+                    )}
+                    {invoice.nts_error_codes && (
+                      <Typography variant="caption" display="block" color="error">
+                        오류 {invoice.nts_error_codes}
+                      </Typography>
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}
             {!loading && invoices.length === 0 && (
-              <TableRow><TableCell colSpan={12} align="center">해당 월 청구 데이터가 없습니다.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={13} align="center">해당 월 청구 데이터가 없습니다.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

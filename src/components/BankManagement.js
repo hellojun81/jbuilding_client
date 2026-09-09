@@ -15,6 +15,9 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { apiRequest } from './common';
 
@@ -35,6 +38,11 @@ function transactionText(transaction) {
     .filter(Boolean).join(' · ') || '-';
 }
 
+function selectedMonthDates(year, month) {
+  const lastDay = String(new Date(Number(year), Number(month), 0).getDate()).padStart(2, '0');
+  return { startDate: `${year}-${month}-01`, endDate: `${year}-${month}-${lastDay}` };
+}
+
 export default function BankManagement() {
   const selectedMonth = useSelector((state) => state.chgMonth.value);
   const [year, month] = selectedMonth.split('-');
@@ -47,6 +55,18 @@ export default function BankManagement() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const initialLedgerDates = selectedMonthDates(year, month);
+  const [bankTab, setBankTab] = useState(0);
+  const [ledgerStartDate, setLedgerStartDate] = useState(initialLedgerDates.startDate);
+  const [ledgerEndDate, setLedgerEndDate] = useState(initialLedgerDates.endDate);
+  const [ledgerType, setLedgerType] = useState('all');
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [ledgerTransactions, setLedgerTransactions] = useState([]);
+  const [ledgerSummary, setLedgerSummary] = useState({ transactionCount: 0, depositTotal: 0, withdrawalTotal: 0 });
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState('');
+  const [ledgerLoaded, setLedgerLoaded] = useState(false);
+  const [ledgerTruncated, setLedgerTruncated] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -76,6 +96,13 @@ export default function BankManagement() {
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, [year, month, refreshKey]);
+
+  useEffect(() => {
+    const dates = selectedMonthDates(year, month);
+    setLedgerStartDate(dates.startDate);
+    setLedgerEndDate(dates.endDate);
+    setLedgerLoaded(false);
+  }, [year, month]);
 
   const unmatchedCount = useMemo(
     () => transactions.filter((transaction) => !transaction.match_id).length,
@@ -116,8 +143,11 @@ export default function BankManagement() {
     const candidate = (transaction.candidates || []).find((value) => value.candidateKey === candidateKey);
     if (!candidate) return setError('매칭할 청구서를 선택해 주세요.');
     const forced = Number(transaction.deposit_amount) !== Number(candidate.amount);
+    const replacing = Boolean(candidate.existingMatchId);
     const difference = Number(transaction.deposit_amount) - Number(candidate.amount);
-    const prompt = forced
+    const prompt = replacing
+      ? `이 청구서에는 기존 입금 매칭 기록이 남아 있습니다.\n\n기존 입금자: ${candidate.existingPayer || '-'}\n기존 입금액: ${money(candidate.existingDepositAmount)}원\n새 입금액: ${money(transaction.deposit_amount)}원\n청구금액: ${money(candidate.amount)}원\n거래처: ${candidate.renterName}\n청구월: ${candidate.billYear}년 ${candidate.billMonth}월\n\n계속하면 기존 입금 매칭은 해제되고 현재 입금으로 교체됩니다. 정말 교체하시겠습니까?`
+      : forced
       ? `금액이 다른 청구서를 강제 매칭합니다.\n\n입금액: ${money(transaction.deposit_amount)}원\n청구금액: ${money(candidate.amount)}원\n차액: ${difference > 0 ? '+' : ''}${money(difference)}원\n거래처: ${candidate.renterName}\n청구월: ${candidate.billYear}년 ${candidate.billMonth}월\n\n계속하면 청구서가 수납 완료로 변경됩니다. 정말 강제 매칭하시겠습니까?`
       : `${money(transaction.deposit_amount)}원 입금을 ${candidate.renterName}의 ${candidate.billYear}년 ${candidate.billMonth}월 청구서에 매칭하시겠습니까?\n확정하면 수납 완료로 변경됩니다.`;
     if (!window.confirm(prompt)) return;
@@ -130,7 +160,7 @@ export default function BankManagement() {
           renterCode: candidate.renterCode,
           year: candidate.billYear,
           month: candidate.billMonth,
-          confirmation: forced ? 'FORCE_MATCH' : 'MATCH',
+          confirmation: replacing ? 'REPLACE_MATCH' : (forced ? 'FORCE_MATCH' : 'MATCH'),
         },
       });
       setMessage(`${candidate.renterName}의 ${candidate.billYear}년 ${candidate.billMonth}월 청구서를 수납 완료로 변경했습니다.`);
@@ -158,8 +188,44 @@ export default function BankManagement() {
     }
   };
 
+  const loadLedger = async () => {
+    if (!ledgerStartDate || !ledgerEndDate) return setLedgerError('조회 기간을 입력해 주세요.');
+    try {
+      setLedgerLoading(true);
+      setLedgerError('');
+      const params = new URLSearchParams({
+        startDate: ledgerStartDate,
+        endDate: ledgerEndDate,
+        type: ledgerType,
+        search: ledgerSearch.trim(),
+      });
+      const data = await apiRequest(`/api/bank/ledger?${params.toString()}`);
+      setLedgerTransactions(Array.isArray(data.transactions) ? data.transactions : []);
+      setLedgerSummary(data.summary || {});
+      setLedgerTruncated(Boolean(data.truncated));
+      setLedgerLoaded(true);
+    } catch (requestError) {
+      setLedgerError(requestError.message);
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
+
+  const changeBankTab = (_event, nextTab) => {
+    setBankTab(nextTab);
+    if (nextTab === 1 && !ledgerLoaded) loadLedger();
+  };
+
   return (
     <Box sx={{ mt: 3, mb: 10 }}>
+      <Paper sx={{ mb: 3 }}>
+        <Tabs value={bankTab} onChange={changeBankTab} variant="fullWidth" aria-label="은행내역 메뉴">
+          <Tab label="입금 매칭" />
+          <Tab label="전체 거래내역" />
+        </Tabs>
+      </Paper>
+
+      {bankTab === 0 && <>
       <Typography variant="h6" sx={{ mb: 2 }}>{year}년 {month}월 은행 입금내역</Typography>
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -198,6 +264,7 @@ export default function BankManagement() {
               const selectedCandidate = (transaction.candidates || [])
                 .find((candidate) => candidate.candidateKey === defaultChoice);
               const forcedSelection = selectedCandidate && !selectedCandidate.exactAmount;
+              const replacingSelection = Boolean(selectedCandidate?.existingMatchId);
               return <TableRow key={transaction.id}>
                 <TableCell>{String(transaction.trade_datetime || transaction.trade_date || '').replace('T', ' ').slice(0, 19)}</TableCell>
                 <TableCell align="right"><strong>{money(transaction.deposit_amount)}원</strong></TableCell>
@@ -215,6 +282,7 @@ export default function BankManagement() {
                             {candidate.exactAmount
                               ? (candidate.learnedMatch ? ' · 이전 매칭 기억' : (candidate.nameMatched ? ' · 이름 일치' : ' · 금액 일치'))
                               : ` · 차액 ${Number(candidate.difference) > 0 ? '+' : ''}${money(candidate.difference)}원`}
+                            {candidate.existingMatchId ? ` · 기존 매칭 ${candidate.existingPayer || ''} ${money(candidate.existingDepositAmount)}원` : ''}
                           </MenuItem>
                         ))}
                       </Select>
@@ -227,11 +295,11 @@ export default function BankManagement() {
                     <Button size="small" color="error" onClick={() => cancelMatch(transaction)} disabled={loading}>취소</Button>
                   </> : <Button
                     size="small"
-                    variant={forcedSelection ? 'contained' : 'outlined'}
-                    color={forcedSelection ? 'warning' : 'primary'}
+                    variant={(forcedSelection || replacingSelection) ? 'contained' : 'outlined'}
+                    color={(forcedSelection || replacingSelection) ? 'warning' : 'primary'}
                     onClick={() => confirmMatch(transaction)}
                     disabled={loading || !defaultChoice}
-                  >{forcedSelection ? '강제 수동 매칭' : '매칭 확정'}</Button>}
+                  >{replacingSelection ? '기존 매칭 교체' : (forcedSelection ? '강제 수동 매칭' : '매칭 확정')}</Button>}
                 </TableCell>
               </TableRow>;
             })}
@@ -239,6 +307,82 @@ export default function BankManagement() {
           </TableBody>
         </Table>
       </TableContainer>
+      </>}
+
+      {bankTab === 1 && <>
+        <Typography variant="h6" sx={{ mb: 2 }}>전체 은행 거래내역</Typography>
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              type="date"
+              label="시작일"
+              value={ledgerStartDate}
+              onChange={(event) => setLedgerStartDate(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              size="small"
+              type="date"
+              label="종료일"
+              value={ledgerEndDate}
+              onChange={(event) => setLedgerEndDate(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <FormControl size="small" sx={{ minWidth: 130 }}>
+              <InputLabel>거래 구분</InputLabel>
+              <Select value={ledgerType} label="거래 구분" onChange={(event) => setLedgerType(event.target.value)}>
+                <MenuItem value="all">전체</MenuItem>
+                <MenuItem value="deposit">입금</MenuItem>
+                <MenuItem value="withdrawal">출금</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              label="입금자·적요 검색"
+              value={ledgerSearch}
+              onChange={(event) => setLedgerSearch(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') loadLedger(); }}
+              sx={{ minWidth: 240 }}
+            />
+            <Button variant="contained" onClick={loadLedger} disabled={ledgerLoading}>조회</Button>
+          </Box>
+          <Typography variant="body2" sx={{ mt: 2 }}>
+            거래 {Number(ledgerSummary.transactionCount || 0)}건 · 입금 합계 {money(ledgerSummary.depositTotal)}원 · 출금 합계 {money(ledgerSummary.withdrawalTotal)}원
+          </Typography>
+        </Paper>
+
+        {ledgerError && <Alert severity="error" sx={{ mb: 2 }}>{ledgerError}</Alert>}
+        {ledgerTruncated && <Alert severity="warning" sx={{ mb: 2 }}>검색 결과가 1,000건을 초과해 최근 1,000건만 표시합니다. 기간이나 검색어를 좁혀 주세요.</Alert>}
+
+        <TableContainer component={Paper}>
+          <Table size="small" sx={{ minWidth: 1050 }}>
+            <TableHead><TableRow>
+              <TableCell>거래일시</TableCell><TableCell>구분</TableCell>
+              <TableCell align="right">입금액</TableCell><TableCell align="right">출금액</TableCell>
+              <TableCell align="right">잔액</TableCell><TableCell>입금자/적요</TableCell><TableCell>매칭 상태</TableCell>
+            </TableRow></TableHead>
+            <TableBody>
+              {ledgerTransactions.map((transaction) => {
+                const isDeposit = Number(transaction.deposit_amount || 0) > 0;
+                return <TableRow key={transaction.id}>
+                  <TableCell>{String(transaction.trade_datetime || transaction.trade_date || '').replace('T', ' ').slice(0, 19)}</TableCell>
+                  <TableCell><Chip size="small" color={isDeposit ? 'primary' : 'default'} label={isDeposit ? '입금' : '출금'} /></TableCell>
+                  <TableCell align="right">{Number(transaction.deposit_amount || 0) ? `${money(transaction.deposit_amount)}원` : '-'}</TableCell>
+                  <TableCell align="right">{Number(transaction.withdrawal_amount || 0) ? `${money(transaction.withdrawal_amount)}원` : '-'}</TableCell>
+                  <TableCell align="right">{money(transaction.balance)}원</TableCell>
+                  <TableCell>{transactionText(transaction)}</TableCell>
+                  <TableCell>{transaction.match_id
+                    ? <Chip size="small" color="success" label={`${transaction.matched_renter_name} · ${transaction.bill_year}.${transaction.bill_month}`} />
+                    : '-'}</TableCell>
+                </TableRow>;
+              })}
+              {!ledgerLoading && ledgerLoaded && ledgerTransactions.length === 0 && <TableRow><TableCell colSpan={7} align="center">조건에 맞는 거래내역이 없습니다.</TableCell></TableRow>}
+              {!ledgerLoaded && <TableRow><TableCell colSpan={7} align="center">조회 조건을 입력한 후 조회 버튼을 눌러 주세요.</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </>}
     </Box>
   );
 }
