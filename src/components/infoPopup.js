@@ -1,3 +1,4 @@
+import { calculateBillingValues } from './billingAmounts';
 import React, { useEffect, useState, useRef } from 'react';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
@@ -40,13 +41,8 @@ function InfoPopup(props) {
             newValues[9] = enddate.format('YYYY.MM.DD')
             newValues[17] = Contdate.format('YYYY.MM.DD')
         }
-        if ((title === '계약정보' || title === '임차인추가')
-            && (event.target.name === 'rent_bill' || event.target.name === 'mng_bill')) {
-            newValues[13] = (Number(newValues[11] || 0) + Number(newValues[12] || 0)) * 0.1;
-        }
-        setGetbill(newValues);
-        const calculatedValues = vatUpdate(newValues, title);
-        totalBillUpdate(calculatedValues, title);
+        applyBillingValues(newValues);
+
     };
     const dtpickerChange = (label) => (event) => {
         const newValues = [...getbill];
@@ -72,31 +68,13 @@ function InfoPopup(props) {
         setGetbill(newValues);
     };
 
-    const vatUpdate = (values, title) => {
-        let newarrValue = [...values]
-        const taxableValues = (title === '계약정보' || title === '임차인추가') && values.length > 10
-            ? values.slice(11, 13)
-            : values.slice(0, 2);
-        const vatMoney = taxableValues.reduce((sum, value) => sum + Number(value || 0), 0) * 0.1;
-        if (title === '청구서생성') {
-            newarrValue[2] = vatMoney
-            // console.log('vatUpdate', { newarrValue: newarrValue, value: values, title: title })
-            setGetbill(newarrValue)
-        }
-        setVat(vatMoney)
-        return newarrValue
+    const applyBillingValues = (values) => {
+        const calculated = calculateBillingValues(values, title);
+        setGetbill(calculated.values);
+        setVat(calculated.vat);
+        setTotal(calculated.total);
     };
 
-    const totalBillUpdate = (values, title) => {
-        const chargeValues = (title === '계약정보' || title === '임차인추가') && values.length > 10
-            ? values.slice(11, 17)
-            : values.slice(0, 6);
-        const tMoney = chargeValues.reduce((sum, value) => sum + Number(value || 0), 0);
-        setTotal(tMoney)
-    };
-
-
-    
     async function getdata(renter, title) {
         let apidata = {}
         if (title === '계약정보' || title === '임차인추가') {
@@ -165,23 +143,8 @@ function InfoPopup(props) {
                 arrKey.push(Object.keys(apidata)[i])
             }
 
-            setGetbill(arrValue)
-            setTextValueName(arrKey)
-            if (title === '계약정보' || title === '임차인추가') {
-                let newarrValue = []
-                let vat = (Number(arrValue[11]) + Number(arrValue[12])) * 0.1
-                newarrValue.push(arrValue[11])
-                newarrValue.push(arrValue[12])
-                newarrValue.push(vat)
-                newarrValue.push(arrValue[14] || 0)
-                newarrValue.push(arrValue[15] || 0)
-                newarrValue.push(arrValue[16] || 0)
-                // console.log('newarrValue', { value: newarrValue, vat: vat })
-                arrValue = newarrValue;
-            }
-            let a=vatUpdate(arrValue, title);
-            // console.log('settingData apidata', a)
-            totalBillUpdate(a, title);
+            setTextValueName(arrKey);
+            applyBillingValues(arrValue);
         }
     }
 
@@ -265,13 +228,13 @@ function InfoPopup(props) {
                                         : value === '관리비'
                                             ? { inputComponent: NumericFormatCustom }
                                             : value === '부가세'
-                                                ? { inputComponent: NumericFormatCustom }
+                                                ? { inputComponent: NumericFormatCustom, readOnly: true }
                                                 : value === '수도료'
                                                     ? { inputComponent: NumericFormatCustom }
                                                     : value === '기타요금'
                                                         ? { inputComponent: NumericFormatCustom }
                                                         : value === '기타 부가세'
-                                                            ? { inputComponent: NumericFormatCustom }
+                                                            ? { inputComponent: NumericFormatCustom, readOnly: true }
                                                     : null
                             }
                             key={`${value}_${index}_${key_index}`}
@@ -289,7 +252,7 @@ function InfoPopup(props) {
                     name='total'
                     value={total}
                     InputProps={{
-                        inputComponent: Numerictotal
+                        inputComponent: Numerictotal, readOnly: true
                     }}
                     variant="standard"
                 />
@@ -338,39 +301,44 @@ function InfoPopup(props) {
 
     return (
         <>
-            <form onSubmit={event => {
+            <form onSubmit={async event => {
                 // console.log('onSubmit', { event: event.nativeEvent.submitter.name });
                 const name = event.nativeEvent.submitter.name
                 event.preventDefault();
+                const saveValues = calculateBillingValues(getbill, title).values;
+                try {
                 if (title === '계약정보') {
                     // console.log('form Submit 계약정보+수정 ', { renter: renter, title: title, value: getbill, key: textValueName })
-                    updateData(renter, title, getbill, textValueName);
+                    await updateData(renter, title, saveValues, textValueName);
                 } else if (title === '임차인추가') {
                     // console.log('form Submit 임차인추가+저장 ', { renter: renter, title: title, value: getbill, key: textValueName })
-                    createData(renter, title, getbill, textValueName);
+                    await createData(renter, title, saveValues, textValueName);
                 } else if (title === '청구서생성') {
                     if (savebtn === '저장') {
                         // console.log('form Submit 청구서생성+저장', { renter: renter, title: title, value: getbill, key: textValueName })
-                        createData(renter, title, getbill, textValueName);
+                        await createData(renter, title, saveValues, textValueName);
                     } else if (savebtn === '수정') {
                         // console.log('form Submit 청구서생성+수정', { renter: renter, title: title, value: getbill, key: textValueName })
-                        updateData(renter, title, getbill, textValueName);
+                        await updateData(renter, title, saveValues, textValueName);
                     }
                 } else if (title === '수납하기') {
                     if (name === 'save') {
                         console.log('form Submit 수납하기+수납하기', { savebtn: savebtn, renter: renter, title: title, value: getbill, key: textValueName })
                         if (savebtn === '수납하기') {
                             setSavebtn('수납취소')
-                            confirmPay(renter, title, getbill, textValueName, 'Y');
+                            await confirmPay(renter, title, saveValues, textValueName, 'Y');
                         } else {
                             setSavebtn('수납하기')
-                            confirmPay(renter, title, getbill, textValueName, 'N');
+                            await confirmPay(renter, title, saveValues, textValueName, 'N');
                         }
                     } else if (name === 'edit') {
                         console.log('form Submit 수납하기+수정하기', { savebtn: savebtn, renter: renter, title: title, value: getbill, key: textValueName })
-                        updateData(renter, title, getbill, textValueName);
+                        await updateData(renter, title, saveValues, textValueName);
                     }
                     // updateData(renter, title, getbill, textValueName, limitdate);
+                }
+                } catch (error) {
+                    alert(error.message || '저장에 실패했습니다.');
                 }
             }}>
                 <Box sx={{
