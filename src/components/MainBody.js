@@ -1,6 +1,7 @@
-import React, { useState, useCallback, } from 'react';
+import React, { useState, useCallback, useRef, } from 'react';
 import LinearProgress from './LinearProgress.js'
 import Box from '@mui/material/Box';
+import Alert from '@mui/material/Alert';
 import Grid from '@mui/material/Grid';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
@@ -31,48 +32,39 @@ console.log("API_URL:", process.env.REACT_APP_API_URL);
 
 function MainTable(props) {
     const [Rows, setRows] = useState(rowsInit);
-    const [Search, setSearch] = useState();
-    const [checkedtop, setCheckedtop] = useState(false);
-    let prevState = store.getState();
+    const [Search, setSearch] = useState('');
+    const [checkedtop, setCheckedtop] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const searchRef = useRef('');
+    const requestId = useRef(0);
 
-
-    React.useEffect(() => {
-        const state = store.getState();
-        const title = state.contentPop.title
-        // console.log(state)
-        if(title==='init'){
-            searchRenter();
+    const searchRenter = useCallback(async () => {
+        const id = ++requestId.current;
+        setLoading(true);
+        setError('');
+        try {
+            const data = await searchBtn(searchRef.current);
+            if (id !== requestId.current) return;
+            const rows = Array.isArray(data) ? data : [];
+            setRows(rows);
+            setCheckedtop(rows.map(row => row.finish === 'Y'));
+        } catch (err) {
+            if (id === requestId.current) setError(err.message || '청구내역을 불러오지 못했습니다. 다시 조회해 주세요.');
+        } finally {
+            if (id === requestId.current) setLoading(false);
         }
-        const subscribeCallback = () => {
-            const state = store.getState();
-            const title = state.contentPop.title
-            // if (state.chgMonth !== prevState.chgMonth) {
-             console.log('MainBody : state change')
-            searchRenter();
-            // }
-            prevState = state;
-        };
-        const unsubscribe = store.subscribe(subscribeCallback);
-        return unsubscribe;
     }, []);
 
-
-
-    async function searchRenter(){
-        let data= await searchBtn(Search)
-        let checkArr=[]
-        const rows = Array.isArray(data) ? data : []
-        setRows(rows)
-        rows.forEach((e, index) => {
-           if(e.finish==='Y'){
-            checkArr.push(true)
-           }else{
-            checkArr.push(false)
-           }
-         });
-         setCheckedtop(checkArr)
-    }
- 
+    React.useEffect(() => {
+        // A tab remount must load regardless of the last opened popup title.
+        searchRenter();
+        const unsubscribe = store.subscribe(searchRenter);
+        return () => {
+            unsubscribe();
+            requestId.current += 1;
+        };
+    }, [searchRenter]);
 
     function BasicTable() {
         const dispatch = useDispatch();
@@ -154,7 +146,7 @@ function MainTable(props) {
                                             sx={{ width: '100%', marginTop: '10px', marginLeft: '10px' }}
                                             label="Search" type="search"
                                             onChange={e => {
-                                                setSearch(e.target.value)
+                                                setSearch(e.target.value); searchRef.current = e.target.value;
                                             }}
                                             value={Search}
                                         />
@@ -166,6 +158,9 @@ function MainTable(props) {
                                     </ButtonGroup>
                                 </Grid>
                                 <Grid item xs={12} >
+                                    {error && <Alert severity="error" action={<Button onClick={searchRenter}>다시 조회</Button>}>{error}</Alert>}
+                                    {loading && <Alert severity="info">청구내역을 불러오는 중입니다.</Alert>}
+                                    {!loading && !error && Rows.length === 0 && <Alert severity="info">조회 조건에 맞는 청구내역이 없습니다.</Alert>}
                                     <BasicTable />
                                 </Grid>
                             </Grid>

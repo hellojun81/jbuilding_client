@@ -173,7 +173,7 @@ async function getRenter(renter, title) {
         const fields = [
             'building_name', 'address', 'name', 'name2', 'licensenum', 'tel', 'email', 'etc',
             'start_date', 'end_date', 'deposit', 'rent_bill', 'mng_bill', 'vat_bill',
-            'water_bill', 'other_bill', 'other_vat_bill', 'contract_date',
+            'water_bill', 'other_bill', 'other_vat_bill', 'contract_date', 'bill_delivery_method',
         ];
         return [Object.fromEntries(fields.map((field) => [field, '']))];
     }

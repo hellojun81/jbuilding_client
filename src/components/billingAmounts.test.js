@@ -11,10 +11,15 @@ test.each(['계약정보', '임차인추가'])('%s uses contract amount fields w
   const input = [...Array(11).fill('정보'), 1410000, 560000, 188000, 30000, 10000, 0];
   const result = calculateBillingValues(input, title);
   expect(result.values[13]).toBe(197000);
-  expect(result.values[16]).toBe(1000);
-  expect(result.total).toBe(2208000);
+  expect(result.values[16]).toBe(0);
+  expect(result.total).toBe(2207000);
   expect(result.values[0]).toBe('정보');
 });
 test('rounds each item VAT consistently with invoice validation', () => {
   expect(calculateBillingValues([15,15,0,0,0,0], '수납하기').vat).toBe(4);
+});
+
+test('other charge 500 is not increased by hidden VAT', () => {
+ const result = calculateBillingValues([1410000,560000,197000,30000,500,50,''], '수납하기');
+ expect(result.total).toBe(2197500); expect(result.values[5]).toBe(0);
 });

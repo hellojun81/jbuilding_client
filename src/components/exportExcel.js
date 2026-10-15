@@ -2,6 +2,7 @@
 import { saveAs } from 'file-saver';
 import * as XLSX from "xlsx-js-style";
 import ExcelJS from 'exceljs';
+import { apiRequest } from './common';
 
 
 const borderStyle = {
@@ -23,6 +24,8 @@ function normalizeExcelRows(rows) {
 }
 
 async function rentBillReport(result, fileName) {
+    const settings = await apiRequest('/api/bills/settings');
+    const { notice } = settings;
     const imageUrl = 'http://jcooly.cafe24.com/stamp.jpg';
     const image = await fetch(imageUrl);
     const blob = await image.blob();
@@ -54,10 +57,10 @@ async function rentBillReport(result, fileName) {
         const otherVatBill = row['기타 부가세'];
 
         const worksheet = workbook.addWorksheet(renter);
-        addSheet(worksheet, renter, address, year, month, rentbill, mngbill, waterbill, otherbill, otherVatBill);
+        addSheet(worksheet, renter, address, year, month, rentbill, mngbill, waterbill, otherbill, otherVatBill, [row['비고'], row['메모']].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n'), notice, settings);
         // 이미지를 워크시트에 배치
         worksheet.addImage(imageId, {
-            tl: { col: 3, row: 18 },
+            tl: { col: 3, row: 19 },
             ext: { width: 60, height: 60 },
         });
     }
@@ -68,30 +71,33 @@ async function rentBillReport(result, fileName) {
     saveAs(exportBlob,fileName+ '.xlsx');
 }
 
-function addSheet(worksheet, renter, address, year, month, rentbill, mngbill, waterbill, otherbill, otherVatBill) {
+function addSheet(worksheet, renter, address, year, month, rentbill, mngbill, waterbill, otherbill, otherVatBill, memo, notice, settings = {}) {
+    const monthText = String(month).padStart(2, '0');
+    const dueDate = `${year}-${monthText}-${new Date(Number(year), Number(month), 0).getDate()}`;
     // 워크시트 생성
-    let tmoney = ((Number(rentbill) + Number(rentbill) * 0.1)
-        + (Number(mngbill) + Number(mngbill) * 0.1))
+    let tmoney = ((Number(rentbill) + Math.round(Number(rentbill) * 0.1))
+        + (Number(mngbill) + Math.round(Number(mngbill) * 0.1)))
         + Number(waterbill) + Number(otherbill) + Number(otherVatBill)
     const data = [
         [year+"년"+month+"월 제이빌딩 임대료 및 관리비 청구서", '', '', ''],
         [' ', ' ', '', ' '],
-        ['제이빌딩', address, '', renter],
-        [' ', ' ', '', ' '],
+        ['제이빌딩', '', '', renter + (address ? ` (${address})` : '')],
+        [`청구 대상 기간: ${year}-${monthText}-01 ~ ${dueDate}`, '', '', ''],
         ['항목', '금액', '부가세액', '합계'],
-        ['월임대료', Number(rentbill), Number(rentbill)*0.1, Number(rentbill)+ Number(rentbill)*0.1],
-        ['일반관리비', Number(mngbill), Number(mngbill)*0.1, Number(mngbill)+ Number(mngbill)*0.1],
+        ['월임대료', Number(rentbill), Math.round(Number(rentbill)*0.1), Number(rentbill)+ Math.round(Number(rentbill)*0.1)],
+        ['일반관리비', Number(mngbill), Math.round(Number(mngbill)*0.1), Number(mngbill)+ Math.round(Number(mngbill)*0.1)],
         ['수도료', Number(waterbill), '', Number(waterbill)],
         ['기타요금', Number(otherbill), Number(otherVatBill), Number(otherbill) + Number(otherVatBill)],
         [' ', ' ', '', ' '],
-        ['납부기한'+year+'년 '+month+'월말일까지', '', '납기내금액', Number(tmoney)],
-        ['', '', '연체가산금', Number(tmoney)*0.015],
-        ['', '', '납기후금액', Number(tmoney)+Number(tmoney)*0.015],
+        ['납부기한 '+dueDate, '', '납기내금액', Number(tmoney)],
+        ['', '', '이전 미납금', '별도 확인'],
+        ['', '', '당월 청구액', Number(tmoney)],
         [' ', ' ', '', ' '],
         [' ', ' ', '', ' '],
-        ['입금계좌: 기업은행 019-096651-01-015(예금주:(주)제이쿨지점)', '', '', ''],
-        ['납부기한은 매월 말일이며 납부기한이 경과되면 매월1.5%의 연체료가 가산됩니다', '', '', ''],
-        ['', '제이빌딩 관리실', '02-2213-2893', ''],
+        ['비고: ' + (String(memo || '').trim() || '-'), '', '', ''],
+        [`입금계좌: ${settings.bank || ''} ${settings.account || '미설정'} / 예금주: ${settings.accountHolder || '미설정'}`, '', '', ''],
+        [notice, '', '', ''],
+        ['', '문의 연락처', settings.contact || '미설정', ''],
         ['', '(주)제이쿨', '대표 김완준', ''],
     ];
     data.forEach((row, index) => {
@@ -124,9 +130,12 @@ function addSheet(worksheet, renter, address, year, month, rentbill, mngbill, wa
         }
     }
     worksheet.mergeCells('A1:D1');
+    worksheet.mergeCells('A4:D4');
     worksheet.mergeCells('A11:B13');
     worksheet.mergeCells('A16:D16');
     worksheet.mergeCells('A17:D17');
+    worksheet.mergeCells('A18:D18');
+    [16, 18].forEach((number) => { const row = worksheet.getRow(number); row.height = Math.max(40, Math.ceil(String(row.getCell(1).value || '').length / 45) * 20); row.getCell(1).alignment = { wrapText: true, vertical: 'middle', horizontal: 'left' }; });
     return worksheet
 }
 

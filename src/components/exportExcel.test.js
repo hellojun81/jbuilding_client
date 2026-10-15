@@ -1,9 +1,12 @@
+import { apiRequest } from './common';
 import { saveAs } from 'file-saver';
 import { decodeExcelValue, normalizeExcelRows, rentBillReport } from './exportExcel';
 import { Buffer } from 'buffer';
 import { TextDecoder } from 'util';
 
 global.TextDecoder = TextDecoder;
+
+jest.mock('./common', () => ({ apiRequest: jest.fn().mockResolvedValue({ notice: '연체 시 5% 안내' }) }));
 
 jest.mock('file-saver', () => ({ saveAs: jest.fn() }));
 
@@ -20,6 +23,7 @@ test('엑셀 행의 숫자는 유지하고 문자열만 복구한다', () => {
 });
 
 test('청구서 워크북을 생성해 xlsx 파일 저장을 요청한다', async () => {
+  apiRequest.mockResolvedValue({ notice: '연체 시 5% 안내' });
   const onePixelPng = Uint8Array.from(Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=',
     'base64',

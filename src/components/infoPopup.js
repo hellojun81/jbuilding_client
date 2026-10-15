@@ -1,3 +1,7 @@
+import DeleteBill from './DeleteBill';
+import { reset } from './store';
+import Alert from '@mui/material/Alert';
+import BillDelivery from './BillDelivery';
 import { calculateBillingValues } from './billingAmounts';
 import React, { useEffect, useState, useRef } from 'react';
 import Button from '@mui/material/Button';
@@ -8,7 +12,7 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import store from './store';
 import { confirmPay, createData, updateData, GridCss, Numerictotal, NumericFormatCustom, getRenter, getRentbill, TextfileStyle } from './common.js'
-import { TextField } from '@mui/material';
+import { TextField, MenuItem, Typography } from '@mui/material';
 import { MobileDatePicker } from '@mui/x-date-pickers/MobileDatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -17,6 +21,8 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 function InfoPopup(props) {
     const today = new Date();
     const [getbill, setGetbill] = useState([]);
+    const [billDeleted, setBillDeleted] = useState(false);
+    const [deletionBusy, setDeletionBusy] = useState(false);
     const [total, setTotal] = useState('0');
     const [vat, setVat] = useState('0');
     const [Contdate, setContdate] = useState(dayjs(today));
@@ -28,6 +34,7 @@ function InfoPopup(props) {
     const state = store.getState();
     const renter = state.contentPop.value
     const title = state.contentPop.title
+    const paymentView = title === '수납하기';
     const [textValue, setTextValue] = useState([['건물명', '동호수', '입주자[상호]', '사업자번호', '담당자', '연락처', '이메일', '메모'], ['계약시작일', '계약종료일', '보증금', '임대료', '관리비', '부가세', '수도료', '기타요금', '기타 부가세']]);
     const [textValueName, setTextValueName] = useState([]);
 
@@ -208,15 +215,19 @@ function InfoPopup(props) {
         arr.map((value, index) => {
             cnt++
             let key_index = cnt - 1
+            if (value === '기타 부가세') return null;
             return (
-                <Grid item xs={6} sx={GridCss} key={`${value}_${index}`}>
+                <Grid item xs={value === '메모' && paymentView ? 12 : 6} sx={GridCss} key={`${value}_${index}`}>
                     {value === '계약시작일' || value === '계약종료일' ?
                         createGridWithDtpicker(value, startdate, enddate, value) :
                         <TextField
                             name={textValueName[key_index] || ''}
-                            label={`${value}`}
-                            sx={TextfileStyle}
-                            size="small"
+                            label={value === '메모' ? '비고(청구서 표시)' : value}
+                            multiline={value === '메모'}
+                            minRows={value === '메모' ? 2 : undefined}
+                            sx={paymentView ? { width: '100%', '& input': { textAlign: 'right', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }, '& .MuiOutlinedInput-root': { borderRadius: 2, backgroundColor: value === '부가세' ? '#f0f4f8' : '#fff' }, '& fieldset': { borderColor: '#d4dce5' } } : TextfileStyle}
+                            helperText={paymentView && value === '부가세' ? '임대료·관리비 기준 자동 계산' : undefined}
+                            size={paymentView ? 'medium' : 'small'}
                             value={value === '부가세' ? vat : getbill[key_index] || ''
                             }
                             onChange={texthandleChange(key_index)}
@@ -238,13 +249,36 @@ function InfoPopup(props) {
                                                     : null
                             }
                             key={`${value}_${index}_${key_index}`}
-                            focused
+                            focused={paymentView ? undefined : true}
                         />}
                 </Grid>
             );
         })
     );
+    const deliveryIndex = textValueName.indexOf('bill_delivery_method');
+    const deliveryField = (title === '계약정보' || title === '임차인추가') && (
+        <Grid item xs={12} sx={GridCss}>
+            <TextField select fullWidth size="small" label="임대료(청구서) 수신방법"
+                value={deliveryIndex >= 0 ? getbill[deliveryIndex] || '' : ''}
+                disabled={deliveryIndex < 0}
+                onChange={texthandleChange(deliveryIndex)}
+                helperText="이메일은 이메일 주소, 문자·카카오는 연락처를 사용합니다. 청구서 저장 후 미리보기에서 발송할 수 있습니다.">
+                <MenuItem value="">미설정</MenuItem>
+                <MenuItem value="email">이메일</MenuItem>
+                <MenuItem value="sms">문자</MenuItem>
+                <MenuItem value="kakao">카카오</MenuItem>
+                <MenuItem value="email_sms">이메일+문자</MenuItem>
+            </TextField>
+        </Grid>
+    );
     function TotalComponents() {
+        if (paymentView) return <Grid item xs={12}>
+            <Box sx={{ p: 2.5, bgcolor: '#edf4fc', border: '1px solid #d4e4f5', borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <Box><Typography fontWeight={700}>당월 청구 합계</Typography><Typography variant="caption" color="text.secondary">입력 금액 합계 · 이전 미납금 제외</Typography></Box>
+                <Typography sx={{ fontSize: { xs: 26, sm: 32 }, fontWeight: 800, color: '#174b82' }}>{Number(total).toLocaleString('ko-KR')}원</Typography>
+            </Box>
+        </Grid>;
+
         let content = null
         content = <>
             <Grid item xs={12} sx={{ textAlign: 'right' }}>
@@ -269,7 +303,7 @@ function InfoPopup(props) {
                 sx={{
                     width: '100%',
                     height: '50px',
-                    marginTop: '30px', marginBottom: '90px'
+                    marginTop: paymentView ? '0px' : '30px', marginBottom: paymentView ? '0px' : '90px', borderRadius: 2, fontWeight: 700
                 }}
                 type="submit"
                 name='save'
@@ -278,16 +312,16 @@ function InfoPopup(props) {
         if (title === '수납하기') {
             content = <>
                 <Grid item xs={6} >
-                    <Button variant="contained"
+                    <Button variant="outlined"
                         sx={{
                             width: '100%',
                             height: '50px',
-                            marginTop: '30px', marginBottom: '90px'
+                            marginTop: paymentView ? '0px' : '30px', marginBottom: paymentView ? '0px' : '90px', borderRadius: 2, fontWeight: 700
                         }}
                         type="submit"
                         name='edit'
                         value='edit'
-                    >수정하기 </Button>
+                    >청구 금액 저장</Button>
                 </Grid>
                 <Grid item xs={6} >
                     {content}
@@ -301,6 +335,8 @@ function InfoPopup(props) {
 
     return (
         <>
+            {billDeleted && <Alert severity="success">청구서가 삭제되었습니다. 창을 닫고 목록을 확인해주세요.</Alert>}
+            <fieldset disabled={billDeleted || deletionBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <form onSubmit={async event => {
                 // console.log('onSubmit', { event: event.nativeEvent.submitter.name });
                 const name = event.nativeEvent.submitter.name
@@ -342,10 +378,11 @@ function InfoPopup(props) {
                 }
             }}>
                 <Box sx={{
-                    padding: '20px',
+                    padding: paymentView ? '24px' : '20px',
                 }}>
 
-                    <Grid container sx={{ backgroundColor: '#F7F7F7' }} spacing={3}>
+                    {paymentView && <Box sx={{ mb: 3 }}><Typography variant="h6" fontWeight={700}>{renter} · {state.chgMonth.value.slice(0, 7)}</Typography><Typography variant="body2" color="text.secondary">청구 금액을 확인한 뒤 저장하거나 수납 처리하세요.</Typography></Box>}
+                    <Grid container sx={{ backgroundColor: paymentView ? '#fff' : '#F7F7F7' }} spacing={paymentView ? 2.5 : 3}>
                         <Grid item xs={6} sx={GridCss} >
                             <SelProvider
                                 value={selprovider}
@@ -358,15 +395,27 @@ function InfoPopup(props) {
                                 : createGridWithDtpicker('수납일', '', '', limitdate)
                             }
                         </Grid>
+                        {paymentView && <Grid item xs={12}><Typography sx={{ pt: 1, fontWeight: 700 }}>청구 금액 <Typography component="span" variant="caption" color="text.secondary">단위: 원</Typography></Typography></Grid>}
                         {extractedValues}
+                        {deliveryField}
                         <Grid item xs={12} >
                             <Divider variant="middle" orientation="horizontal" sx={{ margin: '10px' }} />
                         </Grid>
                         <TotalComponents />
                         <SaveBtn />
+                        {(title === '청구서생성' || title === '수납하기') && (
+                            <Grid item xs={12} sx={paymentView ? { mt: 1, borderTop: '1px solid #e3e8ef' } : undefined}>
+                            {paymentView && <Typography fontWeight={700} sx={{ mb: 1 }}>청구서 발송 및 관리</Typography>}
+                            <DeleteBill renter={renter} period={state.chgMonth.value.slice(0, 7)} onBusy={setDeletionBusy} onDeleted={() => {
+                                setBillDeleted(true);
+                                store.dispatch(reset(state.chgMonth.value));
+                            }} />
+                            <BillDelivery key={`${renter}-${state.chgMonth.value}`} renter={renter} period={state.chgMonth.value} note={textValueName.indexOf('etc') >= 0 ? String(getbill[textValueName.indexOf('etc')] || '') : undefined} /></Grid>
+                        )}
                     </Grid>
                 </Box>
             </form>
+            </fieldset>
         </>
     )
 }

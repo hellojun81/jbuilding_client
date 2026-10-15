@@ -36,6 +36,7 @@ import TaxInvoiceManagement from './components/TaxInvoiceManagement';
 import Dtpicker from './components/Dtpicker';
 import VatManagement from './components/VatManagement';
 import BankManagement from './components/BankManagement';
+import BillDeliveryHistory from './components/BillDeliveryHistory';
 const apiUrl =process.env.REACT_APP_API_URL
 const environmentLabel = process.env.REACT_APP_ENV_LABEL
 const vatManagementEnabled = process.env.REACT_APP_VAT_MANAGEMENT_ENABLED === 'true'
@@ -68,7 +69,7 @@ function App() {
   const [popTitle, setpopTitle] = useState();
   const [PopContent, setPopContent] = useState();
   const [mainTab, setMainTab] = useState(0);
-  const visibleMainTab = !vatManagementEnabled && mainTab > 2 ? 0 : mainTab;
+  const visibleMainTab = !vatManagementEnabled && mainTab > 3 ? 0 : mainTab;
   // const [mode, setMode] = useState('loginCheck');
   const [mode, setMode] = useState('loginCheck');
   const prevState = useRef(store.getState());
@@ -334,12 +335,14 @@ function App() {
                 <Tab label="임대료 관리" />
                 <Tab label="세금계산서 관리" />
                 <Tab label="은행내역" />
+                <Tab label="청구서 발송 내역" />
                 {vatManagementEnabled && <Tab label="부가세 관리" />}
               </Tabs>
               {visibleMainTab === 0 && <Mainbody />}
               {visibleMainTab === 1 && <TaxInvoiceManagement />}
               {visibleMainTab === 2 && <BankManagement />}
-              {vatManagementEnabled && visibleMainTab === 3 && <VatManagement />}
+              {visibleMainTab === 3 && <BillDeliveryHistory />}
+              {vatManagementEnabled && visibleMainTab === 4 && <VatManagement />}
             </Container>
           </React.Fragment>
           <Box sx={{
