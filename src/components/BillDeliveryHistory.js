@@ -17,6 +17,13 @@ export default function BillDeliveryHistory() {
   const [error, setError] = useState('');
   const [detailId, setDetailId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const remove = async (row) => {
+    if (!window.confirm(`${row.renter_name}의 발송 내역을 목록에서 삭제하시겠습니까? 삭제 후 다시 발송할 수 있습니다. 이미 보낸 메시지는 취소되지 않아 재발송하면 상대방이 중복 수신할 수 있습니다.`)) return;
+    setDeleting(true); setError('');
+    try { await apiRequest(`/api/bills/delivery-history/${row.id}`, { method: 'DELETE', body: { confirmation: 'DELETE_DELIVERY_HISTORY' } }); setDetailId(null); setPage(0); setRefresh(v => v + 1); }
+    catch (err) { setError(err.message); } finally { setDeleting(false); }
+  };
   const [detailError, setDetailError] = useState('');
   useEffect(() => { setPage(0); }, [period, channel, status]);
   useEffect(() => {
@@ -51,13 +58,13 @@ export default function BillDeliveryHistory() {
     {error && <Alert severity="error">{error}</Alert>}
     {busy ? <Typography>발송 내역 조회 중…</Typography> : <>
       <TableContainer><Table size="small" sx={{ minWidth: 800 }}>
-        <TableHead><TableRow>{['거래처', '수신방법', '수신처', '발송 요청 시각', '접수 결과', '상세'].map((label) => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
+        <TableHead><TableRow>{['거래처', '수신방법', '수신처', '발송 요청 시각', '접수 결과', '수신 여부', '관리'].map((label) => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
         <TableBody>{data.rows.map((row) => <TableRow key={row.id} hover>
           <TableCell>{row.renter_name}</TableCell><TableCell>{channels[row.channel] || row.channel}</TableCell>
           <TableCell sx={{ overflowWrap: 'anywhere' }}>{row.recipient}</TableCell><TableCell>{time(row.created_at)}</TableCell>
           <TableCell><Chip size="small" label={statuses[row.status] || row.status} color={row.status === 'submitted' ? 'success' : 'warning'} variant="outlined" /></TableCell>
-          <TableCell><Button onClick={() => setDetailId(row.id)}>상세 보기</Button></TableCell>
-        </TableRow>)}{!data.rows.length && !error && <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4 }}>조회 조건에 맞는 발송 내역이 없습니다.</TableCell></TableRow>}</TableBody>
+          <TableCell>{row.channel === 'email' ? '확인 불가 (Gmail SMTP)' : '발송사업자 확인 필요'}</TableCell><TableCell><Button onClick={() => setDetailId(row.id)}>상세 보기</Button><Button color="error" disabled={deleting || row.status === 'queued'} onClick={() => remove(row)}>삭제</Button></TableCell>
+        </TableRow>)}{!data.rows.length && !error && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4 }}>조회 조건에 맞는 발송 내역이 없습니다.</TableCell></TableRow>}</TableBody>
       </Table></TableContainer>
       <TablePagination component="div" count={data.total} page={page} rowsPerPage={20} rowsPerPageOptions={[20]} onPageChange={(_, value) => setPage(value)} labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}건`} />
     </>}
@@ -69,6 +76,7 @@ export default function BillDeliveryHistory() {
           <Typography fontWeight={700}>{detail.renter_name} · {detail.bill_year}년 {detail.bill_month}월</Typography>
           <Typography>{channels[detail.channel]} · {detail.recipient}</Typography>
           <Typography>발송 요청: {time(detail.created_at)}</Typography>
+          <Alert severity="info" sx={{ my: 1 }}>{detail.channel === 'email' ? 'Gmail 발송 접수 결과만 저장되어 있습니다. 수신함 도착·열람 완료는 확인할 수 없습니다. 발송 계정에서 반송 메일을 확인할 수 있지만, 반송 메일이 없다고 수신 완료를 보장하지는 않습니다.' : '최종 수신 결과는 발송사업자 내역에서 확인해 주세요.'}</Alert>
           <Typography>접수 결과: {statuses[detail.status] || detail.status}</Typography>
           <Typography sx={{ overflowWrap: 'anywhere' }}>접수번호: {detail.receipt || '-'}</Typography>
           {detail.error_message && <Alert severity="warning" sx={{ my: 1 }}>{detail.error_message}</Alert>}
