@@ -1,7 +1,9 @@
+import CountSummary from './CountSummary';
 import React, { useState, useCallback, useRef, } from 'react';
 import LinearProgress from './LinearProgress.js'
 import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
+import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
@@ -86,7 +88,7 @@ function MainTable(props) {
             );
         };
         const TableRowClick = (e) => {
-            const renter = e.target.innerHTML
+            const renter = e.currentTarget.getAttribute('name')
             // console.log('tablerowClick : ',renter)
             dispatch(setCurrentName(''))
             dispatch(setCurrentName({value:renter,title:'계약정보'}))
@@ -108,13 +110,14 @@ function MainTable(props) {
                         {Rows.map((row,index) => (
                             <TableRow
                                 key={row.name}
-                                sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                                sx={{ bgcolor: Number(row.has_delivery_history) === 0 ? '#fff4df' : undefined, '&:last-child td, &:last-child th': { border: 0 } }}
                             >
                                 <TableCell component="th" scope="row"
                                     name={row.name}
                                     onClick={TableRowClick}
                                 >
-                                    {row.name}
+                                    <Box component="span">{row.name}</Box>
+                                    {Number(row.has_delivery_history) === 0 && <Chip size="small" label="발송 내역 없음" sx={{ ml: 1, bgcolor: '#ffe0a3', color: '#744600', fontSize: 11 }} />}
                                 </TableCell>
                                 <TableCell align="right">
                                     <SwitchComponent name={row.name} index={index}/>
@@ -161,6 +164,7 @@ function MainTable(props) {
                                     {error && <Alert severity="error" action={<Button onClick={searchRenter}>다시 조회</Button>}>{error}</Alert>}
                                     {loading && <Alert severity="info">청구내역을 불러오는 중입니다.</Alert>}
                                     {!loading && !error && Rows.length === 0 && <Alert severity="info">조회 조건에 맞는 청구내역이 없습니다.</Alert>}
+                                    <CountSummary loading={loading || Boolean(error)} items={[{label:'조회 청구서',count:Rows.length},{label:'수납 완료',count:Rows.filter(r=>r.finish === 'Y').length,color:'#217447'},{label:'미수납',count:Rows.filter(r=>r.finish !== 'Y').length,color:'#b45309'},{label:'발송 내역 없음',count:Rows.filter(r=>Number(r.has_delivery_history) === 0).length,color:'#b45309'}]} />
                                     <BasicTable />
                                 </Grid>
                             </Grid>

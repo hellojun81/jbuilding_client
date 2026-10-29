@@ -1,3 +1,4 @@
+import CountSummary from './CountSummary';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import Alert from '@mui/material/Alert';
@@ -9,7 +10,7 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Select from '@mui/material/Select';
-import Table from '@mui/material/Table';
+import Table from './ResponsiveTable';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
@@ -229,7 +230,7 @@ export default function BankManagement() {
       <Typography variant="h6" sx={{ mb: 2 }}>{year}년 {month}월 은행 입금내역</Typography>
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 250 }}>
+          <FormControl size="small" sx={{ minWidth: 0, width: { xs: '100%', sm: 240 }, maxWidth: '100%' }}>
             <InputLabel>팝빌 등록계좌</InputLabel>
             <Select value={accountKey} label="팝빌 등록계좌" onChange={(event) => setAccountKey(event.target.value)}>
               {accounts.map((account) => (
@@ -246,6 +247,7 @@ export default function BankManagement() {
         </Box>
       </Paper>
 
+      <CountSummary loading={loading || Boolean(error)} items={[{label:'조회 입금',count:transactions.length},{label:'매칭 완료',count:transactions.filter(r=>r.match_id).length,color:'#217447'},{label:'미매칭',count:unmatchedCount,color:'#b45309'}]} />
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {message && <Alert severity="info" sx={{ mb: 2 }}>{message}</Alert>}
       <Alert severity="warning" sx={{ mb: 2 }}>
@@ -343,7 +345,7 @@ export default function BankManagement() {
               value={ledgerSearch}
               onChange={(event) => setLedgerSearch(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter') loadLedger(); }}
-              sx={{ minWidth: 240 }}
+              sx={{ minWidth: 0, width: { xs: '100%', sm: 240 }, maxWidth: '100%' }}
             />
             <Button variant="contained" onClick={loadLedger} disabled={ledgerLoading}>조회</Button>
           </Box>
@@ -355,6 +357,7 @@ export default function BankManagement() {
         {ledgerError && <Alert severity="error" sx={{ mb: 2 }}>{ledgerError}</Alert>}
         {ledgerTruncated && <Alert severity="warning" sx={{ mb: 2 }}>검색 결과가 1,000건을 초과해 최근 1,000건만 표시합니다. 기간이나 검색어를 좁혀 주세요.</Alert>}
 
+        <CountSummary loading={ledgerLoading || Boolean(ledgerError)} items={[{label:'조회 거래',count:ledgerTransactions.length},{label:'입금 거래',count:ledgerTransactions.filter(r=>Number(r.deposit_amount)>0).length},{label:'출금 거래',count:ledgerTransactions.filter(r=>Number(r.withdrawal_amount)>0).length}]} />
         <TableContainer component={Paper}>
           <Table size="small" sx={{ minWidth: 1050 }}>
             <TableHead><TableRow>

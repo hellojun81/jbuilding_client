@@ -329,7 +329,7 @@ function App() {
           <MainDialog />
           <React.Fragment>
             <CssBaseline />
-            <Container maxWidth="sm">
+            <Container maxWidth="lg" sx={{ minWidth: 0, px: { xs: 1, sm: 2 }, '& > *': { minWidth: 0, maxWidth: '100%' }, '& .MuiTabs-root': { minWidth: 0 }, '& .MuiTab-root': { minWidth: 0, px: 0.5, fontSize: { xs: 11, sm: 13 }, whiteSpace: 'normal' } }}>
               <Dtpicker />
               <Tabs value={visibleMainTab} onChange={(event, value) => setMainTab(value)} variant="fullWidth">
                 <Tab label="임대료 관리" />

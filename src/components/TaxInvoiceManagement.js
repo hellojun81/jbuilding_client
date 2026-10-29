@@ -1,3 +1,4 @@
+import CountSummary from './CountSummary';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import Alert from '@mui/material/Alert';
@@ -8,7 +9,7 @@ import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
-import Table from '@mui/material/Table';
+import Table from './ResponsiveTable';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
@@ -27,8 +28,8 @@ const popbillDateTime = (value) => {
 export default function TaxInvoiceManagement() {
   const selectedMonth = useSelector((state) => state.chgMonth.value);
   const [invoices, setInvoices] = useState([]);
-  const [amountUnit, setAmountUnit] = useState('천원');
-  const displayMoney = (value) => (Number(value || 0) / (amountUnit === '천원' ? 1000 : 1)).toLocaleString('ko-KR', { maximumFractionDigits: 3 });
+  const amountUnit = '원';
+  const displayMoney = (value) => Number(value || 0).toLocaleString('ko-KR');
   const amountCell = (supply, vat) => (
     <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
       <Typography component="div" fontWeight={600} title={`${money(supply)}원`}>{displayMoney(supply)}</Typography>
@@ -138,10 +139,6 @@ export default function TaxInvoiceManagement() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 2 }}>
         <Typography variant="h6">{year}년 {month}월 세금계산서</Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Select size="small" value={amountUnit} onChange={(event) => setAmountUnit(event.target.value)} inputProps={{ 'aria-label': '금액 표시 단위' }}>
-            <MenuItem value="천원">단위: 천원</MenuItem>
-            <MenuItem value="원">단위: 원</MenuItem>
-          </Select>
           <Button variant="outlined" disabled={loading} onClick={() => setRefreshKey((value) => value + 1)}>
             국세청 전송상태 새로고침
           </Button>
@@ -156,6 +153,7 @@ export default function TaxInvoiceManagement() {
         </Box>
       </Box>
 
+      <CountSummary loading={loading || Boolean(error)} items={[{label:'청구 거래처',count:invoices.length},{label:'예정 문서(과세·면세)',count:invoices.reduce((n,r)=>n+Number(r.document_count || 1),0)},{label:'미발행 거래처',count:invoices.filter(r=>r.issue_status === '미발행').length},{label:'발행 가능 거래처',count:invoices.filter(r=>r.issue_status === '미발행' && r.valid === 'true').length,color:'#217447'},{label:'선택 거래처',count:selected.length}]} />
       {!provider.configured && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           발행사업자 API가 아직 연결되지 않았습니다. 과세 세금계산서와 수도료 면세 계산서 금액 확인만 가능하며 실제 발행은 비활성화됩니다.
@@ -174,7 +172,7 @@ export default function TaxInvoiceManagement() {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-        금액 단위: {amountUnit} · 각 항목 아래에 VAT 표시 · 금액에 마우스를 올리면 원 단위 확인 · 발행 확인창은 원 단위
+        금액 단위: {amountUnit} · 각 항목 아래에 VAT 표시 · 모든 금액을 원 단위 전체 금액으로 표시
       </Typography>
       <TableContainer component={Paper} sx={{ maxHeight: '65vh', border: '1px solid #e2e8f0', borderRadius: 2 }}>
         <Table size="small" stickyHeader sx={{ minWidth: 1060,
@@ -182,8 +180,16 @@ export default function TaxInvoiceManagement() {
           '& td': { py: 1.5, borderColor: '#e2e8f0' },
           '& tbody tr:nth-of-type(even)': { bgcolor: '#f8fafc' },
           '& tbody tr:hover': { bgcolor: '#eff6ff' },
-          '& th:nth-of-type(2), & td:nth-of-type(2)': { position: 'sticky', left: 0, zIndex: 1, bgcolor: '#f8fafc', minWidth: 120 },
-          '& th:nth-of-type(2)': { zIndex: 3 },
+          '& td:nth-of-type(2)': { bgcolor: '#f8fafc' },
+          '@media(max-width:899px)': {
+            '& tr > :nth-of-type(3), & tr > :nth-of-type(4), & tr > :nth-of-type(5), & tr > :nth-of-type(6), & tr > :nth-of-type(7), & tr > :nth-of-type(10)': { display: 'none' },
+            '& tr > :nth-of-type(2)': { width: '40%' },
+            '& tr > :nth-of-type(8)': { width: '30%' },
+            '& tr > :nth-of-type(9)': { width: '24%' },
+            '& .MuiTypography-body2': { fontSize: 12 },
+            '& .MuiTypography-caption': { fontSize: 11 },
+            '& .MuiSelect-select': { px: 0.5, pr: '24px !important', fontSize: 11 }
+          },
         }}>
           <TableHead>
             <TableRow>
@@ -221,6 +227,12 @@ export default function TaxInvoiceManagement() {
                   <TableCell>
                     <Typography variant="body2" fontWeight={700}>{invoice.renter_name}</Typography>
                     <Typography variant="caption" color="text.secondary">{invoice.business_number}</Typography>
+                    <Box sx={{ display: { xs: 'block', md: 'none' }, mt: 1, fontSize: 11, lineHeight: 1.8 }}>
+                      <div>임대료 {displayMoney(invoice.rent_supply)} · 관리비 {displayMoney(invoice.management_supply)}</div>
+                      <div>기타 {displayMoney(invoice.other_supply)} · 수도료 {displayMoney(invoice.exempt_amount)}</div>
+                      <div>VAT {displayMoney(Number(invoice.rent_vat) + Number(invoice.management_vat) + Number(invoice.other_vat))}</div>
+                      <strong>과세 합계 {displayMoney(invoice.total_amount)} {amountUnit}</strong>
+                    </Box>
                   </TableCell>
                   {amountCell(invoice.rent_supply, invoice.rent_vat)}
                   {amountCell(invoice.management_supply, invoice.management_vat)}
@@ -245,6 +257,7 @@ export default function TaxInvoiceManagement() {
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 0.5 }}>과세 1건{Number(invoice.exempt_amount) !== 0 ? ' · 면세 1건' : ''}</Typography>
+                    <Typography variant="caption" display="block" sx={{ display: { xs: 'block', md: 'none' }, my: 0.5 }}>{invoice.nts_status}</Typography>
                     <Chip size="small" color={valid ? 'success' : 'warning'} label={invoice.issue_status} />
                     {!valid && (
                       <Typography variant="caption" color="error" display="block">

@@ -7,7 +7,7 @@
 .App {
   text-align: center;
   width:100%;
-  max-width: 600px;
+  max-width: 1200px;
   background-color:#eeeeee;
   margin: 0 auto;
 }
@@ -47,3 +47,5 @@ a{color:black}
     transform: rotate(360deg);
   }
 }
+
+.App .MuiTableContainer-root { max-width: 100%; min-width: 0; }

@@ -25,3 +25,9 @@ test('late responses cannot replace the latest monthly list', async () => {
  expect(screen.queryByText('이전 목록')).not.toBeInTheDocument();
  expect(screen.getByText('최신 목록')).toBeInTheDocument();
 });
+test('bills without delivery history have a visible indicator and retain renter click target', async () => {
+ searchBtn.mockResolvedValue([{name:'미발송 거래처',finish:'N',has_delivery_history:0},{name:'발송 거래처',finish:'N',has_delivery_history:1}]);
+ render(<MainTable />);
+ expect(await screen.findByText('발송 내역 없음')).toBeInTheDocument();
+ expect(screen.getAllByText('발송 내역 없음')).toHaveLength(1);
+});

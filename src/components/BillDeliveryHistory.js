@@ -1,3 +1,4 @@
+import CountSummary from './CountSummary';
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
@@ -42,31 +43,40 @@ export default function BillDeliveryHistory() {
       .then((result) => { if (active) setDetail(result); }).catch((err) => { if (active) setDetailError(err.message); });
     return () => { active = false; };
   }, [detailId]);
-  return <Box sx={{ p: 2 }}>
+  return <Box sx={{ p: { xs: 1, sm: 2 }, minWidth: 0, width: '100%', boxSizing: 'border-box', '& .MuiTypography-body1, & .MuiInputBase-root, & .MuiInputLabel-root, & .MuiAlert-message': { fontSize: 13 }, '& .MuiButton-root': { fontSize: 12 }, '& .MuiTypography-h6': { fontSize: 18 } }}>
     <BillNoticeSettings />
     <Typography variant="h6" gutterBottom>{period} 청구서 발송 내역</Typography>
     <Alert severity="info" sx={{ mb: 2 }}>발송 접수는 Gmail·팝빌의 요청 접수 결과이며 수신 완료를 뜻하지 않습니다. 결과 확인이 필요한 건은 발송사업자 내역을 확인해 주세요.</Alert>
-    <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
-      <TextField select size="small" label="수신방법" value={channel} onChange={(e) => setChannel(e.target.value)} sx={{ minWidth: 150 }}>
+    <Stack direction="row" sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+      <TextField select size="small" label="수신방법" value={channel} onChange={(e) => setChannel(e.target.value)} sx={{ minWidth: 0, flex: '1 1 120px', maxWidth: 180 }}>
         <MenuItem value="">전체</MenuItem>{Object.entries(channels).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}
       </TextField>
-      <TextField select size="small" label="접수 결과" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 180 }}>
+      <TextField select size="small" label="접수 결과" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 0, flex: '1 1 140px', maxWidth: 200 }}>
         <MenuItem value="">전체</MenuItem>{Object.entries(statuses).map(([key, label]) => <MenuItem key={key} value={key}>{label}</MenuItem>)}
       </TextField>
       <Button disabled={busy} onClick={() => setRefresh((v) => v + 1)}>새로고침</Button>
     </Stack>
+    <CountSummary loading={busy || Boolean(error)} items={[{label:'조회 발송 내역',count:data.total},{label:'발송 접수',count:data.summary?.submitted,color:'#217447'},{label:'처리 중',count:data.summary?.queued},{label:'결과 확인 필요',count:data.summary?.unknown,color:'#b45309'}]} />
     {error && <Alert severity="error">{error}</Alert>}
     {busy ? <Typography>발송 내역 조회 중…</Typography> : <>
-      <TableContainer><Table size="small" sx={{ minWidth: 800 }}>
+      <TableContainer sx={{ width: '100%', minWidth: 0 }}><Table size="small" sx={{
+        width: '100%', tableLayout: 'fixed',
+        '& .MuiTableCell-root': { fontSize: 12, px: 0.75, py: 1, whiteSpace: 'normal', overflowWrap: 'anywhere', verticalAlign: 'top' },
+        '& .MuiTableCell-head': { fontWeight: 700, bgcolor: 'grey.50' },
+        '& .MuiChip-root': { maxWidth: '100%', height: 'auto', minHeight: 24, fontSize: 11 },
+        '& .MuiChip-label': { whiteSpace: 'normal', overflowWrap: 'anywhere', px: 0.75, py: 0.25 },
+        '& .MuiButton-root': { minWidth: 0, px: 0.5, py: 0.5, fontSize: 12, whiteSpace: 'normal' },
+
+      }}>
         <TableHead><TableRow>{['거래처', '수신방법', '수신처', '발송 요청 시각', '접수 결과', '수신 여부', '관리'].map((label) => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
         <TableBody>{data.rows.map((row) => <TableRow key={row.id} hover>
-          <TableCell>{row.renter_name}</TableCell><TableCell>{channels[row.channel] || row.channel}</TableCell>
-          <TableCell sx={{ overflowWrap: 'anywhere' }}>{row.recipient}</TableCell><TableCell>{time(row.created_at)}</TableCell>
-          <TableCell><Chip size="small" label={statuses[row.status] || row.status} color={row.status === 'submitted' ? 'success' : 'warning'} variant="outlined" /></TableCell>
-          <TableCell>{row.channel === 'email' ? '확인 불가 (Gmail SMTP)' : '발송사업자 확인 필요'}</TableCell><TableCell><Button onClick={() => setDetailId(row.id)}>상세 보기</Button><Button color="error" disabled={deleting || row.status === 'queued'} onClick={() => remove(row)}>삭제</Button></TableCell>
+          <TableCell data-label="거래처">{row.renter_name}</TableCell><TableCell data-label="수신방법">{channels[row.channel] || row.channel}</TableCell>
+          <TableCell data-label="수신처" sx={{ overflowWrap: 'anywhere' }}>{row.recipient}</TableCell><TableCell data-label="발송 요청 시각">{time(row.created_at)}</TableCell>
+          <TableCell data-label="접수 결과"><Chip size="small" label={statuses[row.status] || row.status} color={row.status === 'submitted' ? 'success' : 'warning'} variant="outlined" /></TableCell>
+          <TableCell data-label="수신 여부">{row.channel === 'email' ? '확인 불가 (Gmail SMTP)' : '발송사업자 확인 필요'}</TableCell><TableCell data-label="관리"><Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}><Button onClick={() => setDetailId(row.id)}>상세 보기</Button><Button color="error" disabled={deleting || row.status === 'queued'} onClick={() => remove(row)}>삭제</Button></Box></TableCell>
         </TableRow>)}{!data.rows.length && !error && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4 }}>조회 조건에 맞는 발송 내역이 없습니다.</TableCell></TableRow>}</TableBody>
       </Table></TableContainer>
-      <TablePagination component="div" count={data.total} page={page} rowsPerPage={20} rowsPerPageOptions={[20]} onPageChange={(_, value) => setPage(value)} labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}건`} />
+      <TablePagination sx={{ '& .MuiTablePagination-toolbar': { px: 0, minHeight: 48, flexWrap: 'wrap' }, '& .MuiTablePagination-displayedRows': { fontSize: 12 }, '& .MuiTablePagination-actions': { ml: 1 } }} component="div" count={data.total} page={page} rowsPerPage={20} rowsPerPageOptions={[20]} onPageChange={(_, value) => setPage(value)} labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}건`} />
     </>}
     <Dialog open={detailId !== null} onClose={() => setDetailId(null)} fullWidth maxWidth="sm">
       <DialogTitle>청구서 발송 상세</DialogTitle><DialogContent>

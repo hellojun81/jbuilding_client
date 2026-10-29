@@ -1,3 +1,4 @@
+import CountSummary from './CountSummary';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import Alert from '@mui/material/Alert';
@@ -10,7 +11,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
-import Table from '@mui/material/Table';
+import Table from './ResponsiveTable';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
@@ -248,6 +249,7 @@ export default function VatManagement() {
         ))}
       </Grid>
 
+      <CountSummary items={[{label:'수집 자료',count:records.length},{label:'세금계산서',count:records.filter(r=>r.source === 'tax_invoice').length},{label:'현금영수증',count:records.filter(r=>r.source === 'cash_receipt').length}]} />
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
